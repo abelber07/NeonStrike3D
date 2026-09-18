@@ -255,7 +255,12 @@ document.getElementById('btn-exit-match').addEventListener('click', () => {
 
 // --- AUTENTICACIÓN ---
 const rememberOnStartup = localStorage.getItem(rememberStorageKey) === 'true';
-await prepararAutenticacionManual(rememberOnStartup);
+try {
+    await prepararAutenticacionManual(rememberOnStartup);
+} catch (error) {
+    console.error(error);
+    document.getElementById('login-status').textContent = error.message;
+}
 const googleRedirectUser = await obtenerResultadoGoogle().catch(error => {
     console.error(error);
     document.getElementById('login-status').textContent = showAuthError(error);

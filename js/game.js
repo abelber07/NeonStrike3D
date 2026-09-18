@@ -1,6 +1,20 @@
 // js/game.js
 import * as THREE from 'three';
 
+const PEER_OPTIONS = {
+    host: '0.peerjs.com',
+    port: 443,
+    secure: true,
+    path: '/',
+    debug: 1,
+    config: {
+        iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' }
+        ]
+    }
+};
+
 export class GameEngine {
     constructor(uiManager) {
         this.ui = uiManager;
@@ -400,7 +414,7 @@ export class GameEngine {
         const hostId = roomId || 'ns3d-' + Math.floor(Math.random() * 9000 + 1000);
         this.isHost = true;
         this.mapId = mapId;
-        this.peer = new Peer(hostId);
+        this.peer = new Peer(hostId, PEER_OPTIONS);
         this.peer.on('open', id => {
             this.localPeerId = id;
             this.lobbyPlayers.delete('local');
@@ -431,7 +445,7 @@ export class GameEngine {
         const targetId = peerId.trim();
         this.isHost = false;
         document.getElementById('play-status').textContent = `Conectando con ${targetId}…`;
-        this.peer = new Peer();
+        this.peer = new Peer(PEER_OPTIONS);
         this.peer.on('open', id => {
             this.localPeerId = id;
             this.lobbyPlayers.delete('local');

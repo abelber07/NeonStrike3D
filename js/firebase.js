@@ -42,11 +42,19 @@ export const db = getFirestore(app);
 // --- Autenticación ---
 
 export const prepararAutenticacionManual = async (recordar = false) => {
-    await setPersistence(auth, recordar ? browserLocalPersistence : browserSessionPersistence);
+    await configurarPersistencia(recordar);
 };
 
 export const configurarPersistencia = async (recordar) => {
-    await setPersistence(auth, recordar ? browserLocalPersistence : browserSessionPersistence);
+    const persistence = recordar ? browserLocalPersistence : browserSessionPersistence;
+    try {
+        await setPersistence(auth, persistence);
+    } catch (error) {
+        if (recordar) {
+            throw new Error('El navegador no permite guardar la sesión en este dispositivo.');
+        }
+        throw error;
+    }
 };
 
 export const cerrarSesion = async () => {
