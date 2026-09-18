@@ -245,7 +245,8 @@ const googleRedirectUser = await obtenerResultadoGoogle().catch(error => {
     document.getElementById('login-status').textContent = showAuthError(error);
     return null;
 });
-if (!googleRedirectUser) {
+const googleRedirectPending = Boolean(sessionStorage.getItem('pendingGoogleNickname'));
+if (!googleRedirectUser && !googleRedirectPending) {
     await cerrarSesion();
 }
 escucharAuth(async (user) => {

@@ -422,22 +422,41 @@ export class GameEngine {
     }
 
     connectToHost(peerId) {
+        const targetId = peerId.trim();
+        this.isHost = false;
+        document.getElementById('play-status').textContent = `Conectando con ${targetId}…`;
         this.peer = new Peer();
         this.peer.on('open', id => {
             this.localPeerId = id;
             this.lobbyPlayers.delete('local');
             this.lobbyPlayers.set(id, { id, name: this.playerName, isHost: false });
-            this.conn = this.peer.connect(peerId);
-            this.connections.set(peerId, this.conn);
+            this.conn = this.peer.connect(targetId, { reliable: true });
+            this.connections.set(targetId, this.conn);
             this.setupConnection(this.conn);
+        });
+        this.peer.on('disconnected', () => {
+            document.getElementById('play-status').textContent = 'Se perdió la conexión con el servidor de salas. Reintentando…';
+            this.peer.reconnect();
         });
         this.peer.on('error', error => this.handlePeerError(error));
     }
 
     setupConnection(conn) {
+        const connectionTimeout = setTimeout(() => {
+            if (!conn.open) {
+                conn.close();
+                this.handlePeerError({ type: 'connection-timeout' });
+            }
+        }, 15000);
         conn.on('open', () => {
+            clearTimeout(connectionTimeout);
             console.log('Conexión P2P establecida');
+            document.getElementById('play-status').textContent = 'Conectado a la sala.';
             conn.send({ type: 'hello', id: this.localPeerId, name: this.playerName, isHost: this.isHost, mapId: this.mapId });
+        });
+        conn.on('error', error => {
+            clearTimeout(connectionTimeout);
+            this.handlePeerError(error);
         });
 
         conn.on('data', (data) => {
@@ -508,6 +527,7 @@ export class GameEngine {
         });
 
         conn.on('close', () => {
+            clearTimeout(connectionTimeout);
             this.connections.delete(conn.peer);
             this.removeRemotePlayer(conn.peer);
             this.lobbyPlayers.delete(conn.peer);
@@ -521,9 +541,16 @@ export class GameEngine {
     handlePeerError(error) {
         console.error('Peer error:', error);
         const status = document.getElementById('play-status');
-        status.textContent = error.type === 'unavailable-id'
-            ? 'Ese código de sala ya está ocupado. Usa otro.'
-            : 'La conexión P2P se cerró. Comprueba el ID e inténtalo de nuevo.';
+        const messages = {
+            'unavailable-id': 'Ese código de sala ya está ocupado. Usa otro.',
+            'peer-unavailable': 'No existe una sala activa con ese ID. Comprueba el código del host.',
+            'connection-timeout': 'No se recibió respuesta del host. Comprueba el ID y que el host mantenga abierta la sala.',
+            'network': 'No se pudo conectar con el servidor de salas. Comprueba la conexión a Internet.',
+            'server-error': 'El servidor de salas rechazó la conexión. Inténtalo de nuevo.',
+            'socket-error': 'No se pudo abrir la conexión de red para la sala.',
+            'disconnected': 'La conexión con el host se ha cerrado.'
+        };
+        status.textContent = messages[error.type] || `No se pudo conectar con la sala (${error.type || 'error desconocido'}).`;
         if (!this.isRunning) {
             if (this.peer) this.peer.destroy();
             this.peer = null;
