@@ -8,6 +8,7 @@ import {
     obtenerResultadoGoogle,
     escucharAuth,
     prepararAutenticacionManual,
+    cerrarSesion,
     obtenerPerfilUsuario,
     actualizarPerfil,
     comprarItem,
@@ -244,7 +245,9 @@ const googleRedirectUser = await obtenerResultadoGoogle().catch(error => {
     document.getElementById('login-status').textContent = showAuthError(error);
     return null;
 });
-if (googleRedirectUser) currentUser = googleRedirectUser;
+if (!googleRedirectUser) {
+    await cerrarSesion();
+}
 escucharAuth(async (user) => {
     if (user) {
         currentUser = user;
