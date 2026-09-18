@@ -493,6 +493,38 @@ export class GameEngine {
             if (data.type === 'start' && !this.isRunning) {
                 this.startMatch(data.mode || 'ffa', false, null, data.mapId || this.mapId);
             }
+            if (data.type === 'match-state') {
+                if (data.mapId) this.createMap(data.mapId);
+                this.mode = data.mode || this.mode || 'ffa';
+                (data.players || []).forEach(player => {
+                    this.lobbyPlayers.set(player.id, {
+                        id: player.id,
+                        name: player.name,
+                        isHost: Boolean(player.isHost)
+                    });
+                    if (!this.combatants.has(player.id)) {
+                        this.combatants.set(player.id, {
+                            name: player.name,
+                            hp: 100,
+                            kills: player.kills || 0,
+                            streak: player.streak || 0
+                        });
+                    }
+                    if (player.id !== this.localPeerId) {
+                        this.createRemotePlayer(player.id);
+                        this.updateRemotePlayer(player.id, player.x || 0, player.y || 0, player.z || 0);
+                        if (Number.isFinite(player.yaw)) {
+                            this.remotePlayers[player.id].rotation.y = player.yaw;
+                            this.remotePlayers[player.id].userData.targetYaw = player.yaw;
+                        }
+                    }
+                });
+                if (data.started && !this.isRunning) {
+                    this.startMatch(this.mode, false, null, data.mapId || this.mapId);
+                } else {
+                    this.notifyLobby();
+                }
+            }
             if (data.type === 'kill') {
                 this.ui.addKillEvent(data.killer, data.victim, data.streak);
                 const killer = this.combatants.get(data.killerId) || { name: data.killer, kills: 0, streak: 0, hp: 100 };
@@ -536,6 +568,13 @@ export class GameEngine {
                     this.broadcast({ type: 'player', id }, conn.peer);
                     this.broadcastLobby();
                     this.notifyLobby();
+                    conn.send({
+                        type: 'match-state',
+                        started: this.matchStarted,
+                        mode: this.mode || 'ffa',
+                        mapId: this.mapId,
+                        players: this.getMatchPlayers()
+                    });
                     if (this.matchStarted) {
                         conn.send({ type: 'start', mode: this.mode, mapId: this.mapId });
                     }
@@ -603,6 +642,24 @@ export class GameEngine {
     broadcastLobby() {
         const players = Array.from(this.lobbyPlayers.entries()).map(([id, player]) => ({ id, ...player }));
         this.broadcast({ type: 'lobby', players, mapId: this.mapId, mode: this.mode || 'ffa' });
+    }
+
+    getMatchPlayers() {
+        return Array.from(this.lobbyPlayers.entries()).map(([id, player]) => {
+            const mesh = id === this.localPeerId ? this.player : this.remotePlayers[id];
+            const stats = this.combatants.get(id) || {};
+            return {
+                id,
+                name: player.name,
+                isHost: Boolean(player.isHost),
+                x: mesh?.position.x || 0,
+                y: mesh?.position.y || 0,
+                z: mesh?.position.z || 0,
+                yaw: mesh?.rotation.y || 0,
+                kills: stats.kills || 0,
+                streak: stats.streak || 0
+            };
+        });
     }
 
     handleRemoteMove(conn, data) {
