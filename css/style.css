@@ -132,6 +132,11 @@ input:focus { border-color: var(--accent); }
 .eyebrow { color: var(--accent); font-size: 10px; letter-spacing: .16em; }
 .training-intro h3 { font-size: 28px; margin: 14px 0 8px; }
 .controls-hint { color: var(--text-muted); font-size: 11px; line-height: 1.5; margin-top: 18px; }
+.story-preview { display: grid; gap: 14px; align-content: center; }
+.story-chapter { display: flex; align-items: center; gap: 14px; padding: 12px; border: 1px solid rgba(255,255,255,.08); border-radius: 9px; background: rgba(0,0,0,.18); }
+.story-chapter > b { color: var(--accent); font-size: 20px; }
+.story-chapter span { display: grid; gap: 4px; }
+.story-chapter small { color: var(--text-muted); font-size: 11px; }
 .scenario-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .scenario-card { border: 1px solid rgba(255,255,255,.12); border-radius: 12px; overflow: hidden; padding: 0 0 14px; text-align: left; color: var(--text-main); background: rgba(14, 20, 34, .9); cursor: pointer; transition: .2s; }
 .scenario-card:hover, .scenario-card.active { border-color: var(--accent); transform: translateY(-4px); box-shadow: 0 0 20px rgba(0,229,255,.18); }
@@ -171,6 +176,7 @@ input:focus { border-color: var(--accent); }
 }
 .training-status strong { display: flex; justify-content: space-between; gap: 20px; }
 .training-status span { color: var(--accent); font-size: 16px; }
+.training-status strong:last-child span { color: #ff6b8a; }
 .training-phase {
     position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
     min-width: 150px; padding: 9px 20px; text-align: center;

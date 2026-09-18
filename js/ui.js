@@ -42,9 +42,10 @@ export class UIManager {
         document.getElementById('hud-ammo-count').textContent = ammo;
     }
 
-    actualizarEntrenamiento(enemigos, bajas, ronda, segundos) {
+    actualizarEntrenamiento(enemigos, bajas, ronda, segundos, vidas = 3) {
         document.getElementById('hud-enemies').textContent = enemigos;
         document.getElementById('hud-kills').textContent = bajas;
+        document.getElementById('hud-lives').textContent = vidas;
         document.getElementById('hud-round').textContent = `RONDA ${ronda}`;
         const minutes = Math.floor(segundos / 60).toString().padStart(2, '0');
         const seconds = Math.floor(segundos % 60).toString().padStart(2, '0');

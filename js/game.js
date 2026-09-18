@@ -63,6 +63,9 @@ export class GameEngine {
         this.trainingRound = 0;
         this.trainingKills = 0;
         this.trainingElapsed = 0;
+        this.trainingLives = 3;
+        this.storyChapter = 0;
+        this.onProgress = null;
         this.trainingNextRoundTimer = null;
         this.playerName = 'Jugador';
         this.mapId = 'neon-district';
@@ -201,13 +204,19 @@ export class GameEngine {
         return group;
     }
 
-    createCharacter(color) {
+    createCharacter(color, archetype = 'soldier') {
         const group = new THREE.Group();
         const armor = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.28, metalness: 0.42, roughness: 0.42 });
         const dark = new THREE.MeshStandardMaterial({ color: 0x101522, metalness: 0.65, roughness: 0.3 });
-        const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.48, 0.85, 6, 12), armor);
+        const body = archetype === 'drone'
+            ? new THREE.Mesh(new THREE.OctahedronGeometry(0.82, 1), armor)
+            : archetype === 'sentinel'
+                ? new THREE.Mesh(new THREE.CylinderGeometry(0.64, 0.8, 1.25, 8), armor)
+                : new THREE.Mesh(new THREE.CapsuleGeometry(0.48, 0.85, 6, 12), armor);
         body.position.y = 1.15;
-        const head = new THREE.Mesh(new THREE.SphereGeometry(0.38, 16, 12), dark);
+        const head = archetype === 'drone'
+            ? new THREE.Mesh(new THREE.SphereGeometry(0.28, 12, 8), dark)
+            : new THREE.Mesh(new THREE.SphereGeometry(0.38, 16, 12), dark);
         head.position.y = 2.05;
         const visor = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.12, 0.12), new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: color, emissiveIntensity: 0.8 }));
         visor.position.set(0, 2.08, -0.32);
@@ -268,6 +277,10 @@ export class GameEngine {
         return !this.coverMeshes.some(mesh => new THREE.Box3().setFromObject(mesh).intersectsSphere(sphere));
     }
 
+    startStory() {
+        this.startTraining('neon-district');
+    }
+
     startTraining(mapId = this.mapId) {
         this.stop();
         this.training = true;
@@ -276,6 +289,8 @@ export class GameEngine {
         this.trainingRound = 0;
         this.trainingKills = 0;
         this.trainingElapsed = 0;
+        this.trainingLives = 3;
+        this.storyChapter = 0;
         this.createMap(mapId);
         this.player.position.set(0, 0, 0);
         this.hp = 100;
@@ -293,18 +308,29 @@ export class GameEngine {
         this.trainingRound += 1;
         this.bots.forEach(bot => this.scene.remove(bot.mesh));
         this.bots.clear();
-        const count = Math.min(10, 2 + this.trainingRound);
+        const chapter = Math.min(2, Math.floor((this.trainingRound - 1) / 3));
+        if (chapter !== this.storyChapter) {
+            this.storyChapter = chapter;
+            const chapterMap = ['neon-district', 'orbital-yard', 'reactor-core'][chapter];
+            if (chapterMap !== this.mapId) {
+                this.createMap(chapterMap);
+                this.ui.addKillfeed(`Capítulo ${chapter + 1}: ${SCENARIOS[chapterMap].label}`);
+            }
+        }
+        const count = Math.min(12, 2 + this.trainingRound);
+        const archetype = ['soldier', 'drone', 'sentinel'][this.storyChapter];
+        const hp = 80 + this.trainingRound * 10;
         for (let i = 0; i < count; i++) {
             const spawn = this.findBotSpawn(i, count);
-            const mesh = this.createCharacter(i % 2 ? 0xff4d9d : 0xffa62b);
+            const mesh = this.createCharacter(i % 2 ? 0xff4d9d : 0xffa62b, archetype);
             mesh.position.copy(spawn);
             this.scene.add(mesh);
-            this.bots.set(`bot-${i}`, { mesh, hp: 100, cooldown: Math.random(), name: `Bot ${i + 1}` });
+            this.bots.set(`bot-${i}`, { mesh, hp, cooldown: Math.random(), name: `${archetype === 'drone' ? 'Dron' : archetype === 'sentinel' ? 'Centinela' : 'Soldado'} ${i + 1}`, difficulty: this.trainingRound });
         }
         const roundHud = document.getElementById('hud-round');
         roundHud.hidden = false;
         roundHud.textContent = `RONDA ${this.trainingRound}`;
-        this.ui.actualizarEntrenamiento(this.bots.size, this.trainingKills, this.trainingRound, this.trainingElapsed);
+        this.ui.actualizarEntrenamiento(this.bots.size, this.trainingKills, this.trainingRound, this.trainingElapsed, this.trainingLives);
         this.ui.addKillfeed(`Ronda ${this.trainingRound}: objetivos desplegados`);
     }
 
@@ -367,12 +393,15 @@ export class GameEngine {
         this.createImpact(bot.mesh.position.clone().setY(1.2), 0xff4d9d);
         if (bot.hp > 0) return;
         this.trainingKills += 1;
-        this.ui.actualizarEntrenamiento(this.bots.size - 1, this.trainingKills, this.trainingRound, this.trainingElapsed);
+        const xp = 20 + this.trainingRound * 5 + (this.storyChapter * 10);
+        const coins = 4 + this.trainingRound * 2 + (this.storyChapter * 3);
+        if (this.onProgress) this.onProgress({ xp, coins });
+        this.ui.actualizarEntrenamiento(this.bots.size - 1, this.trainingKills, this.trainingRound, this.trainingElapsed, this.trainingLives);
         this.ui.addKillfeed(`${this.playerName} neutralizó a ${bot.name}`);
         this.scene.remove(bot.mesh);
         this.bots.delete(id);
         if (this.bots.size === 0) {
-            this.trainingNextRoundTimer = setTimeout(() => this.nextTrainingRound(), 1600);
+                this.trainingNextRoundTimer = setTimeout(() => this.nextTrainingRound(), 1600);
         }
     }
 
@@ -427,14 +456,14 @@ export class GameEngine {
             bot.mesh.rotation.y = Math.atan2(this.player.position.x - bot.mesh.position.x, this.player.position.z - bot.mesh.position.z) + Math.PI;
             bot.cooldown -= dt;
             if (distance < 30 && bot.cooldown <= 0) {
-                bot.cooldown = Math.max(0.48, 1.45 - this.trainingRound * 0.07);
+                bot.cooldown = Math.max(0.34, 1.45 - this.trainingRound * 0.07);
                 const origin = bot.mesh.position.clone().setY(1.4);
                 const target = this.player.position.clone().setY(1.25);
                 this.raycaster.set(origin, target.sub(origin).normalize());
                 const obstacle = this.raycaster.intersectObjects(this.coverMeshes, true)[0];
                 if (!obstacle || obstacle.distance > origin.distanceTo(this.player.position)) {
                     this.createTracer(origin, this.player.position.clone().setY(1.35), 0xff4d9d);
-                    if (Math.random() < Math.min(0.78, 0.24 + this.trainingRound * 0.06)) this.receiveDamage(8 + Math.min(12, this.trainingRound));
+                    if (Math.random() < Math.min(0.9, 0.24 + this.trainingRound * 0.06)) this.receiveDamage(8 + Math.min(18, this.trainingRound * 1.2));
                 }
             }
         });
@@ -448,6 +477,13 @@ export class GameEngine {
     }
 
     respawn() {
+        this.trainingLives -= 1;
+        this.ui.actualizarEntrenamiento(this.bots.size, this.trainingKills, this.trainingRound, this.trainingElapsed, this.trainingLives);
+        if (this.trainingLives <= 0) {
+            this.ui.mostrarFinPartida('Fin de la misión', [`Bajas: ${this.trainingKills}`, `Ronda alcanzada: ${this.trainingRound}`, 'Vuelve a intentarlo para superar tu marca.']);
+            this.stop();
+            return;
+        }
         this.isRespawning = true;
         this.ui.mostrarRespawn(3);
         let seconds = 3;
@@ -460,6 +496,7 @@ export class GameEngine {
                 this.hp = 100;
                 this.player.position.set(0, 0, 0);
                 this.ui.ocultarRespawn();
+                this.ui.actualizarEntrenamiento(this.bots.size, this.trainingKills, this.trainingRound, this.trainingElapsed, this.trainingLives);
             } else {
                 this.ui.mostrarRespawn(seconds);
             }

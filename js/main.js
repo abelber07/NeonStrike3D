@@ -13,7 +13,8 @@ import {
     obtenerPerfilUsuario,
     actualizarPerfil,
     comprarItem,
-    reclamarRecompensa
+    reclamarRecompensa,
+    guardarEstadisticasPartida
 } from './firebase.js';
 
 const ui = new UIManager();
@@ -32,28 +33,42 @@ const setRememberDevice = async (remember) => {
     localStorage.setItem(rememberStorageKey, String(remember));
     await configurarPersistencia(remember);
 };
-let selectedMap = 'neon-district';
-
 const shopItems = [
     { id: 'neon-blue', nombre: 'Pulso Ártico', descripcion: 'Skin de arma azul eléctrico.', categoria: 'skin', icon: '🔷', precio: 250 },
     { id: 'neon-pink', nombre: 'Rayo Rosa', descripcion: 'Skin de arma con brillo magenta.', categoria: 'skin', icon: '💗', precio: 400 },
     { id: 'nova-burst', nombre: 'Nova Burst', descripcion: 'Efecto de eliminación explosivo.', categoria: 'killEffect', icon: '💥', precio: 350 },
     { id: 'tag-hunter', nombre: '[HUNTER]', descripcion: 'Tag para destacar en el marcador.', categoria: 'tag', icon: '🎯', precio: 200 }
+    ,{ id: 'void-purple', nombre: 'Vacío Púrpura', descripcion: 'Skin de arma de energía oscura.', categoria: 'skin', icon: '🟣', precio: 600 }
+    ,{ id: 'ion-trail', nombre: 'Rastro Iónico', descripcion: 'Efecto de eliminación eléctrico.', categoria: 'killEffect', icon: '⚡', precio: 550 }
+    ,{ id: 'tag-vanguard', nombre: '[VANGUARD]', descripcion: 'Tag de los supervivientes de la campaña.', categoria: 'tag', icon: '🛡️', precio: 450 }
 ];
 const battlePassTiers = [
     { nivel: 1, icon: '◈', recompensa: '100 monedas', monedas: 100 },
     { nivel: 2, icon: '🔷', recompensa: 'Pulso Ártico', itemId: 'neon-blue' },
     { nivel: 3, icon: '◈', recompensa: '200 monedas', monedas: 200 },
     { nivel: 4, icon: '💥', recompensa: 'Nova Burst', itemId: 'nova-burst' },
-    { nivel: 5, icon: '★', recompensa: '300 monedas', monedas: 300 }
+    { nivel: 5, icon: '★', recompensa: '300 monedas', monedas: 300 },
+    { nivel: 6, icon: '🟣', recompensa: 'Vacío Púrpura', itemId: 'void-purple' },
+    { nivel: 7, icon: '◈', recompensa: '500 monedas', monedas: 500 },
+    { nivel: 8, icon: '⚡', recompensa: 'Rastro Iónico', itemId: 'ion-trail' },
+    { nivel: 9, icon: '⬢', recompensa: '700 monedas', monedas: 700 },
+    { nivel: 10, icon: '🛡️', recompensa: '[VANGUARD]', itemId: 'tag-vanguard' }
 ];
 
 const refreshContent = () => {
     if (!currentProfile) return;
     ui.renderItems('shop-grid', shopItems, null, handleShopItem);
     const category = document.querySelector('#locker-tabs .chip.active')?.dataset.cat || 'skin';
-    const lockerItems = [{ id: 'default', nombre: 'Estándar', descripcion: 'Equipo inicial de NeonStrike.', categoria: category, icon: '⚡', precio: 0 }, ...shopItems];
-    ui.renderItems('locker-grid', lockerItems.filter(item => item.categoria === category || item.id === 'default'), currentProfile.skinEquipada, handleLockerItem);
+    const defaults = {
+        skin: { id: 'default', nombre: 'Estándar', descripcion: 'Equipo inicial de NeonStrike.', categoria: 'skin', icon: '⚡', precio: 0 },
+        killEffect: { id: 'default', nombre: 'Sin efecto', descripcion: 'Eliminación sin efecto equipado.', categoria: 'killEffect', icon: '○', precio: 0 },
+        tag: { id: 'default', nombre: '[N00B]', descripcion: 'Tag inicial.', categoria: 'tag', icon: '◇', precio: 0 }
+    };
+    const lockerItems = [defaults[category], ...shopItems].filter(item =>
+        item.categoria === category && (item.id === 'default' || (currentProfile.inventario || []).includes(item.id))
+    );
+    const equipped = category === 'skin' ? currentProfile.skinEquipada : category === 'killEffect' ? currentProfile.efectoKill : currentProfile.tagEquipado === '[N00B]' ? 'default' : currentProfile.tagEquipado === '[HUNTER]' ? 'tag-hunter' : 'tag-vanguard';
+    ui.renderItems('locker-grid', lockerItems, equipped, handleLockerItem);
     ui.renderBattlePass(battlePassTiers.map(tier => ({ ...tier, reclamado: (currentProfile.recompensas || []).includes(tier.nivel) })), currentProfile.nivel || 1, claimBattlePass);
 };
 
@@ -75,7 +90,7 @@ async function handleShopItem(item) {
 
 async function handleLockerItem(item) {
     if (!currentUser || !currentProfile || !(currentProfile.inventario || []).includes(item.id)) return;
-    const changes = item.categoria === 'skin' ? { skinEquipada: item.id } : item.categoria === 'killEffect' ? { efectoKill: item.id } : { tagEquipado: item.id === 'default' ? '[N00B]' : '[HUNTER]' };
+    const changes = item.categoria === 'skin' ? { skinEquipada: item.id } : item.categoria === 'killEffect' ? { efectoKill: item.id } : { tagEquipado: item.id === 'default' ? '[N00B]' : item.id === 'tag-vanguard' ? '[VANGUARD]' : '[HUNTER]' };
     try {
         await actualizarPerfil(currentUser.uid, changes);
         await persistProfile({ ...currentProfile, ...changes });
@@ -189,17 +204,19 @@ document.querySelectorAll('[data-back]').forEach(btn => {
     });
 });
 
-document.querySelectorAll('.scenario-card').forEach(card => {
-    card.addEventListener('click', event => {
-        document.querySelectorAll('.scenario-card').forEach(item => item.classList.remove('active'));
-        event.currentTarget.classList.add('active');
-        selectedMap = event.currentTarget.dataset.map;
-    });
+document.getElementById('btn-training').addEventListener('click', () => {
+    game.startStory();
 });
 
-document.getElementById('btn-training').addEventListener('click', () => {
-    game.startTraining(selectedMap);
-});
+game.onProgress = async ({ xp, coins }) => {
+    if (!currentUser || !currentProfile) return;
+    try {
+        await guardarEstadisticasPartida(currentUser.uid, xp, coins);
+        await persistProfile(await obtenerPerfilUsuario(currentUser.uid, currentProfile.nombre));
+    } catch (error) {
+        console.error('No se pudo guardar la recompensa de campaña:', error);
+    }
+};
 
 // --- SALIR DE PARTIDA ---
 document.getElementById('btn-leave-match').addEventListener('click', () => {

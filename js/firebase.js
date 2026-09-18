@@ -20,7 +20,6 @@ import {
     getDoc,
     setDoc,
     updateDoc,
-    increment,
     runTransaction
 } from "firebase/firestore";
 
@@ -115,9 +114,16 @@ export const obtenerPerfilUsuario = async (uid, nombrePorDefecto = "Jugador") =>
 
 export const guardarEstadisticasPartida = async (uid, xpGanada, monedasGanadas) => {
     const userRef = doc(db, "users", uid);
-    await updateDoc(userRef, {
-        xp: increment(xpGanada),
-        monedas: increment(monedasGanadas)
+    await runTransaction(db, async transaction => {
+        const snapshot = await transaction.get(userRef);
+        if (!snapshot.exists()) throw new Error("No se encontró el perfil del jugador.");
+        const perfil = snapshot.data();
+        const xp = (Number(perfil.xp) || 0) + Math.max(0, Number(xpGanada) || 0);
+        transaction.update(userRef, {
+            xp,
+            nivel: Math.max(1, Math.floor(xp / 100) + 1),
+            monedas: (Number(perfil.monedas) || 0) + Math.max(0, Number(monedasGanadas) || 0)
+        });
     });
 };
 
@@ -130,7 +136,10 @@ const CATALOGO_ITEMS = {
     "neon-blue": { precio: 250 },
     "neon-pink": { precio: 400 },
     "nova-burst": { precio: 350 },
-    "tag-hunter": { precio: 200 }
+    "tag-hunter": { precio: 200 },
+    "void-purple": { precio: 600 },
+    "ion-trail": { precio: 550 },
+    "tag-vanguard": { precio: 450 }
 };
 
 const PASE_RECOMPENSAS = {
@@ -138,7 +147,12 @@ const PASE_RECOMPENSAS = {
     2: { itemId: "neon-blue" },
     3: { monedas: 200 },
     4: { itemId: "nova-burst" },
-    5: { monedas: 300 }
+    5: { monedas: 300 },
+    6: { itemId: "void-purple" },
+    7: { monedas: 500 },
+    8: { itemId: "ion-trail" },
+    9: { monedas: 700 },
+    10: { itemId: "tag-vanguard" }
 };
 
 export const comprarItem = async (uid, itemId) => {

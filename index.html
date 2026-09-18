@@ -31,7 +31,7 @@
   <section class="screen active" id="screen-login">
     <div class="login-card glass">
       <h1 class="brand">NEON<span>STRIKE</span></h1>
-      <p class="sub">Shooter 3D en primera persona · entrenamiento táctico</p>
+      <p class="sub">Shooter 3D en primera persona · campaña táctica</p>
 
       <label class="field">
         <span>Nombre de jugador</span>
@@ -96,27 +96,22 @@
   <section class="screen" id="screen-play">
     <header class="topbar">
       <button class="btn ghost back" data-back="menu">← Volver</button>
-      <h2>Entrenamiento</h2>
+      <h2>Campaña</h2>
     </header>
 
     <div class="training-layout">
       <div class="panel glass training-intro">
-        <span class="eyebrow">RANGO DE PRÁCTICA // SOLO</span>
-        <h3>Afina tu puntería</h3>
-        <p class="hint">Supera oleadas de bots blindados. El escenario bloquea los disparos y cada ronda acelera el ritmo.</p>
-        <button class="btn primary big-btn" id="btn-training">Iniciar entrenamiento</button>
+        <span class="eyebrow">HISTORIA // OPERACIÓN NEON</span>
+        <h3>La última señal</h3>
+        <p class="hint">Avanza por una campaña de rondas cada vez más peligrosas. El escenario cambia durante la misión y solo tienes tres vidas.</p>
+        <button class="btn primary big-btn" id="btn-training">Jugar historia</button>
         <p class="controls-hint">WASD moverse · SHIFT correr · ESPACIO saltar · R recargar · clic apuntar/disparar</p>
       </div>
-      <div class="scenario-grid">
-        <button class="scenario-card active" data-map="neon-district" type="button">
-          <span class="scenario-art district-art"></span><strong>Distrito Neon</strong><small>Calles de luz y cobertura urbana</small>
-        </button>
-        <button class="scenario-card" data-map="orbital-yard" type="button">
-          <span class="scenario-art orbital-art"></span><strong>Astillero Orbital</strong><small>Pasarelas abiertas y pilares</small>
-        </button>
-        <button class="scenario-card" data-map="reactor-core" type="button">
-          <span class="scenario-art reactor-art"></span><strong>Núcleo Reactor</strong><small>Galerías violetas y fuego cruzado</small>
-        </button>
+      <div class="story-preview panel glass">
+        <span class="eyebrow">RUTA DE LA CAMPAÑA</span>
+        <div class="story-chapter"><b>01</b><span><strong>Distrito Neon</strong><small>La ciudad cae bajo una señal desconocida.</small></span></div>
+        <div class="story-chapter"><b>02</b><span><strong>Astillero Orbital</strong><small>La señal se propaga entre drones de carga.</small></span></div>
+        <div class="story-chapter"><b>03</b><span><strong>Núcleo Reactor</strong><small>Desactiva el origen antes de la sobrecarga.</small></span></div>
       </div>
     </div>
   </section>
@@ -162,6 +157,7 @@
     <div class="training-status glass" aria-live="polite">
       <strong>ENEMIGOS ACTIVOS <span id="hud-enemies">0</span></strong>
       <strong>BAJAS <span id="hud-kills">0</span></strong>
+      <strong>VIDAS <span id="hud-lives">3</span></strong>
     </div>
 
     <div class="training-phase glass" id="hud-phase" aria-live="polite">
