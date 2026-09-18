@@ -5,6 +5,7 @@ import {
     registrarCuenta,
     iniciarSesion,
     loginGoogle,
+    obtenerResultadoGoogle,
     escucharAuth,
     prepararAutenticacionManual,
     obtenerPerfilUsuario,
@@ -142,9 +143,13 @@ document.getElementById('btn-login-google').addEventListener('click', async () =
         document.getElementById('input-nickname').focus();
         return;
     }
+    if (!['http:', 'https:'].includes(window.location.protocol)) {
+        status.textContent = 'Google solo funciona desde GitHub Pages o un servidor local (http/https), no desde file://.';
+        return;
+    }
     try {
-        pendingGoogleNickname = nickname;
-        status.textContent = 'Abriendo Google…';
+        sessionStorage.setItem('pendingGoogleNickname', nickname);
+        status.textContent = 'Redirigiendo a Google…';
         await loginGoogle();
     } catch (e) {
         pendingGoogleNickname = '';
@@ -234,14 +239,25 @@ document.getElementById('btn-exit-match').addEventListener('click', () => {
 
 // --- AUTENTICACIÓN ---
 await prepararAutenticacionManual();
+const googleRedirectUser = await obtenerResultadoGoogle().catch(error => {
+    console.error(error);
+    document.getElementById('login-status').textContent = showAuthError(error);
+    return null;
+});
+if (googleRedirectUser) currentUser = googleRedirectUser;
 escucharAuth(async (user) => {
     if (user) {
         currentUser = user;
-        const nickname = pendingGoogleNickname || user.displayName || document.getElementById('input-nickname').value.trim() || 'Jugador';
+        const nickname = sessionStorage.getItem('pendingGoogleNickname')
+            || pendingGoogleNickname
+            || user.displayName
+            || document.getElementById('input-nickname').value.trim()
+            || 'Jugador';
         try {
             const perfil = await obtenerPerfilUsuario(user.uid, nickname);
             await persistProfile(perfil);
             pendingGoogleNickname = '';
+            sessionStorage.removeItem('pendingGoogleNickname');
             ui.showScreen('screen-menu');
         } catch (error) {
             console.error(error);

@@ -3,7 +3,8 @@ import { initializeApp } from "firebase/app";
 import {
     getAuth,
     GoogleAuthProvider,
-    signInWithPopup,
+    signInWithRedirect,
+    getRedirectResult,
     onAuthStateChanged,
     updateProfile,
     createUserWithEmailAndPassword,
@@ -57,8 +58,12 @@ export const iniciarSesion = async (email, password) => {
 
 export const loginGoogle = async () => {
     const provider = new GoogleAuthProvider();
-    const result = await signInWithPopup(auth, provider);
-    return result.user;
+    await signInWithRedirect(auth, provider);
+};
+
+export const obtenerResultadoGoogle = async () => {
+    const result = await getRedirectResult(auth);
+    return result?.user || null;
 };
 
 export const escucharAuth = (callback) => {
