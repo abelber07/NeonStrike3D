@@ -61,6 +61,8 @@ export class GameEngine {
         this.isRespawning = false;
         this.training = false;
         this.trainingRound = 0;
+        this.trainingKills = 0;
+        this.trainingElapsed = 0;
         this.trainingNextRoundTimer = null;
         this.playerName = 'Jugador';
         this.mapId = 'neon-district';
@@ -160,7 +162,6 @@ export class GameEngine {
                 this.coverMeshes.push(pillar);
             }
         }
-        document.getElementById('hud-map').textContent = scenario.label.toUpperCase();
     }
 
     addScenarioTrim(cover, scenario, index) {
@@ -273,6 +274,8 @@ export class GameEngine {
         this.isRunning = true;
         this.mapId = mapId;
         this.trainingRound = 0;
+        this.trainingKills = 0;
+        this.trainingElapsed = 0;
         this.createMap(mapId);
         this.player.position.set(0, 0, 0);
         this.hp = 100;
@@ -292,17 +295,36 @@ export class GameEngine {
         this.bots.clear();
         const count = Math.min(10, 2 + this.trainingRound);
         for (let i = 0; i < count; i++) {
-            const angle = (i / count) * Math.PI * 2;
+            const spawn = this.findBotSpawn(i, count);
             const mesh = this.createCharacter(i % 2 ? 0xff4d9d : 0xffa62b);
-            mesh.position.set(Math.cos(angle) * (9 + this.trainingRound), 0, Math.sin(angle) * (9 + this.trainingRound));
+            mesh.position.copy(spawn);
             this.scene.add(mesh);
             this.bots.set(`bot-${i}`, { mesh, hp: 100, cooldown: Math.random(), name: `Bot ${i + 1}` });
         }
         const roundHud = document.getElementById('hud-round');
         roundHud.hidden = false;
-        roundHud.textContent = `RONDA ${this.trainingRound} · ${count} OBJETIVOS · DIFICULTAD ${this.trainingRound}`;
-        this.ui.actualizarScoreboard([{ name: this.playerName, kills: 0 }, ...Array.from(this.bots.values()).map(bot => ({ name: bot.name, kills: 0 }))], 'ENTRENAMIENTO');
+        roundHud.textContent = `RONDA ${this.trainingRound}`;
+        this.ui.actualizarEntrenamiento(this.bots.size, this.trainingKills, this.trainingRound, this.trainingElapsed);
         this.ui.addKillfeed(`Ronda ${this.trainingRound}: objetivos desplegados`);
+    }
+
+    findBotSpawn(index, count) {
+        const radius = 12 + Math.min(10, this.trainingRound * 1.5);
+        for (let attempt = 0; attempt < 40; attempt++) {
+            const angle = ((index + attempt * 0.618) / count) * Math.PI * 2;
+            const distance = radius + (attempt % 4) * 2.5;
+            const candidate = new THREE.Vector3(Math.cos(angle) * distance, 0, Math.sin(angle) * distance);
+            if (candidate.distanceTo(this.player.position) < 9) continue;
+            if (this.canOccupy(candidate)) return candidate;
+        }
+        const safeSpawns = [
+            new THREE.Vector3(-42, 0, -42),
+            new THREE.Vector3(42, 0, -42),
+            new THREE.Vector3(-42, 0, 42),
+            new THREE.Vector3(42, 0, 42),
+            new THREE.Vector3(0, 0, 42)
+        ];
+        return safeSpawns.find(candidate => this.canOccupy(candidate)) || new THREE.Vector3(0, 0, 42);
     }
 
     getShotData() {
@@ -344,6 +366,8 @@ export class GameEngine {
         bot.hp -= damage;
         this.createImpact(bot.mesh.position.clone().setY(1.2), 0xff4d9d);
         if (bot.hp > 0) return;
+        this.trainingKills += 1;
+        this.ui.actualizarEntrenamiento(this.bots.size - 1, this.trainingKills, this.trainingRound, this.trainingElapsed);
         this.ui.addKillfeed(`${this.playerName} neutralizó a ${bot.name}`);
         this.scene.remove(bot.mesh);
         this.bots.delete(id);
@@ -362,8 +386,10 @@ export class GameEngine {
     createTracer(start, end, color) {
         const geometry = new THREE.BufferGeometry().setFromPoints([start, end]);
         const line = new THREE.Line(geometry, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.9 }));
+        line.material.depthTest = false;
+        line.renderOrder = 30;
         this.scene.add(line);
-        this.tracers.push({ object: line, life: 0.09, maxLife: 0.09 });
+        this.tracers.push({ object: line, life: 0.22, maxLife: 0.22 });
     }
 
     createImpact(position, color) {
@@ -447,6 +473,10 @@ export class GameEngine {
         const dt = Math.min(0.05, Math.max(0.001, (now - this.lastFrameTime) / 1000));
         this.lastFrameTime = now;
         this.updateBots(dt);
+        if (this.training) {
+            this.trainingElapsed += dt;
+            this.ui.actualizarEntrenamiento(this.bots.size, this.trainingKills, this.trainingRound, this.trainingElapsed);
+        }
 
         this.camera.rotation.order = 'YXZ';
         this.camera.rotation.set(this.mouseY, this.mouseX, 0);
@@ -515,6 +545,8 @@ export class GameEngine {
     stop() {
         this.isRunning = false;
         this.training = false;
+        this.trainingKills = 0;
+        this.trainingElapsed = 0;
         if (this.animationFrame) cancelAnimationFrame(this.animationFrame);
         this.animationFrame = null;
         if (this.trainingNextRoundTimer) clearTimeout(this.trainingNextRoundTimer);

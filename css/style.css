@@ -164,19 +164,20 @@ input:focus { border-color: var(--accent); }
 
 /* HUD */
 #hud { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 20; pointer-events: none; }
-.hud-scoreboard {
+.training-status {
+    position: absolute; top: 16px; left: 16px; min-width: 190px; padding: 12px 16px;
+    display: grid; gap: 6px; color: #d9faff; font-size: 12px; letter-spacing: .08em;
+    border-left: 3px solid var(--accent);
+}
+.training-status strong { display: flex; justify-content: space-between; gap: 20px; }
+.training-status span { color: var(--accent); font-size: 16px; }
+.training-phase {
     position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
-    min-width: 320px; padding: 12px; pointer-events: auto;
+    min-width: 150px; padding: 9px 20px; text-align: center;
+    display: grid; gap: 3px; border-top: 2px solid var(--accent);
 }
-.sb-header {
-    display: flex; justify-content: space-between; font-size: 11px;
-    color: var(--text-muted); margin-bottom: 8px;
-    border-bottom: 1px solid #333; padding-bottom: 6px;
-    text-transform: uppercase; letter-spacing: 1px;
-}
-.sb-rows { list-style: none; font-size: 13px; }
-.sb-rows li { display: flex; justify-content: space-between; padding: 4px 0; }
-.sb-rows li .rank { color: var(--accent); margin-right: 8px; font-weight: bold; }
+.training-phase strong { color: var(--accent); font-size: 13px; letter-spacing: .12em; }
+.training-phase span { color: var(--text-main); font-size: 18px; font-variant-numeric: tabular-nums; }
 
 .killfeed {
     position: absolute; bottom: 116px; left: 20px; max-width: min(420px, 48vw);
@@ -252,7 +253,8 @@ input:focus { border-color: var(--accent); }
     .scenario-grid { grid-template-columns: 1fr; }
     .scenario-art { height: 100px; }
     .grid-items { grid-template-columns: repeat(auto-fill, minmax(145px, 1fr)); }
-    .hud-scoreboard { min-width: 240px; }
+    .training-status { top: 12px; left: 12px; min-width: 168px; }
+    .training-phase { top: 12px; }
     .hud-health { left: 12px; bottom: 12px; width: 170px; }
     .hud-ammo { right: 12px; bottom: 12px; }
 }

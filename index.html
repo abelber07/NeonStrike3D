@@ -159,14 +159,14 @@
 
   <!-- ============ HUD DE PARTIDA ============ -->
   <div id="hud" hidden>
+    <div class="training-status glass" aria-live="polite">
+      <strong>ENEMIGOS ACTIVOS <span id="hud-enemies">0</span></strong>
+      <strong>BAJAS <span id="hud-kills">0</span></strong>
+    </div>
 
-    <div class="hud-scoreboard glass" id="hud-scoreboard">
-      <div class="sb-header">
-        <span class="sb-mode" id="hud-mode">FFA</span>
-        <span class="sb-map" id="hud-map">—</span>
-      </div>
-      <div class="hud-round" id="hud-round" hidden>RONDA 1 · BOTS 0</div>
-      <ul class="sb-rows" id="hud-rows"></ul>
+    <div class="training-phase glass" id="hud-phase" aria-live="polite">
+      <strong id="hud-round">RONDA 1</strong>
+      <span id="hud-phase-time">00:00</span>
     </div>
 
     <ul class="killfeed" id="killfeed" aria-live="polite"></ul>

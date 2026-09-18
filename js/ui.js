@@ -42,26 +42,13 @@ export class UIManager {
         document.getElementById('hud-ammo-count').textContent = ammo;
     }
 
-    actualizarScoreboard(jugadores, modo) {
-        document.getElementById('hud-mode').textContent = modo.toUpperCase();
-        const rows = document.getElementById('hud-rows');
-        rows.innerHTML = '';
-        const ordenados = [...jugadores].sort((a, b) => (b.kills || 0) - (a.kills || 0));
-        ordenados.forEach((j, i) => {
-            const li = document.createElement('li');
-            const player = document.createElement('span');
-            const rank = document.createElement('span');
-            rank.className = 'rank';
-            rank.textContent = `#${i + 1}`;
-            const tag = document.createElement('span');
-            tag.className = 'tag';
-            tag.textContent = j.tag || '';
-            player.append(rank, document.createTextNode(`${j.name || 'Jugador'} `), tag);
-            const kills = document.createElement('span');
-            kills.textContent = `${j.kills || 0} kills`;
-            li.append(player, kills);
-            rows.appendChild(li);
-        });
+    actualizarEntrenamiento(enemigos, bajas, ronda, segundos) {
+        document.getElementById('hud-enemies').textContent = enemigos;
+        document.getElementById('hud-kills').textContent = bajas;
+        document.getElementById('hud-round').textContent = `RONDA ${ronda}`;
+        const minutes = Math.floor(segundos / 60).toString().padStart(2, '0');
+        const seconds = Math.floor(segundos % 60).toString().padStart(2, '0');
+        document.getElementById('hud-phase-time').textContent = `${minutes}:${seconds}`;
     }
 
     addKillfeed(texto) {
