@@ -8,6 +8,7 @@ import {
     obtenerResultadoGoogle,
     escucharAuth,
     prepararAutenticacionManual,
+    configurarPersistencia,
     cerrarSesion,
     obtenerPerfilUsuario,
     actualizarPerfil,
@@ -21,6 +22,17 @@ game.onLobbyChanged = players => ui.updateLobbyUI(players, isHost);
 let currentUser = null;
 let currentProfile = null;
 let pendingGoogleNickname = '';
+const rememberDevice = document.getElementById('remember-device');
+const rememberStorageKey = 'neonstrike-remember-device';
+rememberDevice.checked = localStorage.getItem(rememberStorageKey) === 'true';
+rememberDevice.addEventListener('change', () => {
+    localStorage.setItem(rememberStorageKey, String(rememberDevice.checked));
+});
+
+const setRememberDevice = async (remember) => {
+    localStorage.setItem(rememberStorageKey, String(remember));
+    await configurarPersistencia(remember);
+};
 let selectedMode = 'ffa';
 let selectedMap = 'neon-district';
 
@@ -112,6 +124,7 @@ document.getElementById('btn-register').addEventListener('click', async () => {
         return;
     }
     try {
+        await setRememberDevice(rememberDevice.checked);
         status.textContent = 'Creando cuenta…';
         await registrarCuenta(email, password, nickname);
     } catch (e) {
@@ -128,6 +141,7 @@ document.getElementById('btn-login').addEventListener('click', async () => {
         return;
     }
     try {
+        await setRememberDevice(rememberDevice.checked);
         status.textContent = 'Iniciando sesión…';
         await iniciarSesion(email, password);
     } catch (e) {
@@ -150,6 +164,7 @@ document.getElementById('btn-login-google').addEventListener('click', async () =
     }
     try {
         sessionStorage.setItem('pendingGoogleNickname', nickname);
+        localStorage.setItem(rememberStorageKey, String(rememberDevice.checked));
         status.textContent = 'Redirigiendo a Google…';
         await loginGoogle();
     } catch (e) {
@@ -239,14 +254,15 @@ document.getElementById('btn-exit-match').addEventListener('click', () => {
 });
 
 // --- AUTENTICACIÓN ---
-await prepararAutenticacionManual();
+const rememberOnStartup = localStorage.getItem(rememberStorageKey) === 'true';
+await prepararAutenticacionManual(rememberOnStartup);
 const googleRedirectUser = await obtenerResultadoGoogle().catch(error => {
     console.error(error);
     document.getElementById('login-status').textContent = showAuthError(error);
     return null;
 });
 const googleRedirectPending = Boolean(sessionStorage.getItem('pendingGoogleNickname'));
-if (!googleRedirectUser && !googleRedirectPending) {
+if (!googleRedirectUser && !googleRedirectPending && !rememberOnStartup) {
     await cerrarSesion();
 }
 escucharAuth(async (user) => {

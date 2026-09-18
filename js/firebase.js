@@ -11,6 +11,7 @@ import {
     signInWithEmailAndPassword,
     setPersistence,
     browserSessionPersistence,
+    browserLocalPersistence,
     signOut
 } from "firebase/auth";
 import {
@@ -40,8 +41,12 @@ export const db = getFirestore(app);
 
 // --- Autenticación ---
 
-export const prepararAutenticacionManual = async () => {
-    await setPersistence(auth, browserSessionPersistence);
+export const prepararAutenticacionManual = async (recordar = false) => {
+    await setPersistence(auth, recordar ? browserLocalPersistence : browserSessionPersistence);
+};
+
+export const configurarPersistencia = async (recordar) => {
+    await setPersistence(auth, recordar ? browserLocalPersistence : browserSessionPersistence);
 };
 
 export const cerrarSesion = async () => {

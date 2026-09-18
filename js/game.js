@@ -44,6 +44,8 @@ export class GameEngine {
         this.respawnTimer = null;
         this.isRespawning = false;
         this.lastFrameTime = performance.now();
+        this.connectionFailureHandled = new Set();
+        this.reconnectTimer = null;
 
         this.initThree();
         this.initInputs();
@@ -418,6 +420,10 @@ export class GameEngine {
             this.conn = conn;
             this.setupConnection(conn);
         });
+        this.peer.on('disconnected', () => {
+            document.getElementById('play-status').textContent = 'Se perdió temporalmente la señalización. Manteniendo la sala y reintentando…';
+            if (!this.peer.destroyed) this.peer.reconnect();
+        });
         this.peer.on('error', error => this.handlePeerError(error));
     }
 
@@ -450,13 +456,14 @@ export class GameEngine {
         }, 15000);
         conn.on('open', () => {
             clearTimeout(connectionTimeout);
+            this.connectionFailureHandled.delete(`${conn.peer}:disconnected`);
             console.log('Conexión P2P establecida');
             document.getElementById('play-status').textContent = 'Conectado a la sala.';
             conn.send({ type: 'hello', id: this.localPeerId, name: this.playerName, isHost: this.isHost, mapId: this.mapId });
         });
         conn.on('error', error => {
             clearTimeout(connectionTimeout);
-            this.handlePeerError(error);
+            this.handleConnectionError(conn, error);
         });
 
         conn.on('data', (data) => {
@@ -534,8 +541,15 @@ export class GameEngine {
             this.combatants.delete(conn.peer);
             this.notifyLobby();
             console.log('Conexión cerrada');
-            if (!this.isHost && this.isRunning) this.handlePeerError({ type: 'disconnected' });
+            if (!this.isHost) this.handleConnectionError(conn, { type: 'disconnected' });
         });
+    }
+
+    handleConnectionError(conn, error) {
+        const key = `${conn.peer}:${error.type || 'error'}`;
+        if (this.connectionFailureHandled.has(key)) return;
+        this.connectionFailureHandled.add(key);
+        this.handlePeerError(error);
     }
 
     handlePeerError(error) {
@@ -551,10 +565,14 @@ export class GameEngine {
             'disconnected': 'La conexión con el host se ha cerrado.'
         };
         status.textContent = messages[error.type] || `No se pudo conectar con la sala (${error.type || 'error desconocido'}).`;
+        if (error.type === 'disconnected') {
+            if (this.isHost) return;
+            if (!this.isRunning) {
+                status.textContent = 'El host cerró la sala o dejó de estar disponible.';
+                return;
+            }
+        }
         if (!this.isRunning) {
-            if (this.peer) this.peer.destroy();
-            this.peer = null;
-            this.connections.clear();
             return;
         }
         this.stop();
