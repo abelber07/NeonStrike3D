@@ -10,6 +10,7 @@
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+[hidden] { display: none !important; }
 
 body { background-color: var(--bg-color); color: var(--text-main); overflow: hidden; }
 
@@ -38,7 +39,7 @@ body { background-color: var(--bg-color); color: var(--text-main); overflow: hid
 
 /* Login */
 #screen-login { background: linear-gradient(135deg, #0b0e14 0%, #1a2333 100%); }
-.login-card { width: 320px; text-align: center; }
+.login-card { width: min(380px, calc(100vw - 32px)); text-align: center; }
 .brand { font-size: 28px; font-weight: 900; letter-spacing: 2px; }
 .brand span { color: var(--accent); }
 .brand.big { font-size: 48px; margin-bottom: 24px; }
@@ -47,6 +48,7 @@ body { background-color: var(--bg-color); color: var(--text-main); overflow: hid
 /* Campos y botones */
 .field { display: flex; flex-direction: column; text-align: left; margin-bottom: 16px; }
 .field span { font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
+.auth-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
 input {
     padding: 10px; border-radius: 6px; border: 1px solid #333;
     background: rgba(0,0,0,0.5); color: white; font-size: 14px; outline: none;
@@ -140,15 +142,18 @@ input:focus { border-color: var(--accent); }
 .item-card {
     background: var(--panel-bg); border: 1px solid #333; border-radius: 12px;
     padding: 16px; text-align: center; cursor: pointer; transition: 0.2s;
+    color: var(--text-main); font-family: inherit;
 }
 .item-card:hover { border-color: var(--accent); transform: translateY(-4px); }
 .item-card .icon { font-size: 36px; margin-bottom: 8px; }
 .item-card .name { font-weight: bold; margin-bottom: 4px; font-size: 14px; }
+.item-card .description { display: block; min-height: 32px; color: var(--text-muted); font-size: 11px; line-height: 1.4; margin-bottom: 8px; }
 .item-card .price { color: gold; font-size: 13px; }
 .item-card.equipped { border-color: #4ade80; box-shadow: 0 0 12px rgba(74, 222, 128, 0.4); }
+.item-card:disabled { cursor: default; opacity: 0.7; }
 
 /* HUD */
-#hud { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; pointer-events: none; }
+#hud { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 20; pointer-events: none; }
 .hud-scoreboard {
     position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
     min-width: 320px; padding: 12px; pointer-events: auto;
@@ -164,12 +169,13 @@ input:focus { border-color: var(--accent); }
 .sb-rows li .rank { color: var(--accent); margin-right: 8px; font-weight: bold; }
 
 .killfeed {
-    position: absolute; top: 80px; right: 20px;
-    list-style: none; text-align: right; font-size: 13px;
+    position: absolute; bottom: 116px; left: 20px; max-width: min(420px, 48vw);
+    list-style: none; text-align: left; font-size: 13px; z-index: 22;
 }
 .killfeed li {
-    background: rgba(0,0,0,0.6); padding: 6px 12px; border-radius: 4px;
-    margin-bottom: 4px; animation: slideIn 0.3s ease;
+    background: rgba(5, 8, 16, 0.82); border-left: 3px solid var(--accent);
+    padding: 8px 12px; border-radius: 4px; margin-bottom: 5px;
+    animation: slideIn 0.3s ease; box-shadow: 0 4px 16px rgba(0,0,0,0.3);
 }
 @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
 
@@ -212,7 +218,7 @@ input:focus { border-color: var(--accent); }
 .match-end ul { list-style: none; margin-bottom: 20px; }
 .match-end ul li { padding: 6px 0; font-size: 14px; }
 
-.exit-match { position: absolute; top: 16px; right: 16px; width: auto; padding: 8px 16px; pointer-events: auto; }
+.exit-match { position: absolute; top: 16px; right: 16px; width: auto; padding: 8px 16px; pointer-events: auto; z-index: 21; }
 
 /* Pase de batalla */
 .bp-track {
@@ -226,3 +232,15 @@ input:focus { border-color: var(--accent); }
 .bp-tier.unlocked { border-color: var(--accent); }
 .bp-tier .tier-num { font-size: 12px; color: var(--text-muted); }
 .bp-tier .reward { font-size: 32px; margin: 8px 0; }
+.bp-tier strong { display: block; min-height: 36px; font-size: 12px; margin-bottom: 10px; }
+.lobby-section + .lobby-section { border-top: 1px solid rgba(255,255,255,0.08); padding-top: 12px; }
+
+@media (max-width: 700px) {
+    .menu-content { left: 6%; right: 6%; width: auto; }
+    .brand.big { font-size: 36px; }
+    .play-grid { flex-direction: column; overflow-y: auto; margin-top: 72px; }
+    .grid-items { grid-template-columns: repeat(auto-fill, minmax(145px, 1fr)); }
+    .hud-scoreboard { min-width: 240px; }
+    .hud-health { left: 12px; bottom: 12px; width: 170px; }
+    .hud-ammo { right: 12px; bottom: 12px; }
+}

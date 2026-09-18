@@ -63,7 +63,17 @@ export class UIManager {
         const ordenados = [...jugadores].sort((a, b) => (b.kills || 0) - (a.kills || 0));
         ordenados.forEach((j, i) => {
             const li = document.createElement('li');
-            li.innerHTML = `<span><span class="rank">#${i + 1}</span>${j.name} <span class="tag">${j.tag || ''}</span></span><span>${j.kills || 0} kills</span>`;
+            const player = document.createElement('span');
+            const rank = document.createElement('span');
+            rank.className = 'rank';
+            rank.textContent = `#${i + 1}`;
+            const tag = document.createElement('span');
+            tag.className = 'tag';
+            tag.textContent = j.tag || '';
+            player.append(rank, document.createTextNode(`${j.name || 'Jugador'} `), tag);
+            const kills = document.createElement('span');
+            kills.textContent = `${j.kills || 0} kills`;
+            li.append(player, kills);
             rows.appendChild(li);
         });
     }
@@ -73,7 +83,15 @@ export class UIManager {
         const li = document.createElement('li');
         li.textContent = texto;
         feed.appendChild(li);
+        while (feed.children.length > 5) feed.firstElementChild.remove();
         setTimeout(() => li.remove(), 4000);
+    }
+
+    addKillEvent(killer, victim, streak = 0) {
+        this.addKillfeed(`${killer} eliminó a ${victim}`);
+        if ([3, 5, 10, 15].includes(streak)) {
+            this.addKillfeed(`${killer} lleva una racha de ${streak} eliminaciones`);
+        }
     }
 
     mostrarRespawn(segundos) {
@@ -96,5 +114,39 @@ export class UIManager {
             ul.appendChild(li);
         });
         document.getElementById('match-end').hidden = false;
+    }
+
+    renderItems(containerId, items, equippedId, onSelect) {
+        const container = document.getElementById(containerId);
+        container.innerHTML = '';
+        items.forEach(item => {
+            const card = document.createElement('button');
+            card.className = `item-card${item.id === equippedId ? ' equipped' : ''}`;
+            card.type = 'button';
+            card.innerHTML = `<span class="icon">${item.icon}</span><span class="name">${item.nombre}</span><span class="description">${item.descripcion}</span><span class="price">${item.precio ? `◈ ${item.precio}` : item.id === equippedId ? 'Equipado' : 'Gratis'}</span>`;
+            card.addEventListener('click', () => onSelect(item));
+            container.appendChild(card);
+        });
+    }
+
+    renderBattlePass(tiers, level, onClaim) {
+        const container = document.getElementById('bp-track');
+        container.innerHTML = '';
+        tiers.forEach(tier => {
+            const unlocked = level >= tier.nivel;
+            const card = document.createElement('div');
+            card.className = `bp-tier${unlocked ? ' unlocked' : ''}`;
+            card.innerHTML = `<div class="tier-num">NIVEL ${tier.nivel}</div><div class="reward">${tier.icon}</div><strong>${tier.recompensa}</strong>`;
+            if (unlocked) {
+                const button = document.createElement('button');
+                button.className = 'chip';
+                button.type = 'button';
+                button.textContent = tier.reclamado ? 'Reclamado' : 'Reclamar';
+                button.disabled = tier.reclamado;
+                button.addEventListener('click', () => onClaim(tier));
+                card.appendChild(button);
+            }
+            container.appendChild(card);
+        });
     }
 }

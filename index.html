@@ -34,17 +34,28 @@
   <section class="screen active" id="screen-login">
     <div class="login-card glass">
       <h1 class="brand">NEON<span>STRIKE</span></h1>
-      <p class="sub">Shooter 3D en tercera persona · P2P</p>
+      <p class="sub">Shooter 3D en primera persona · P2P</p>
 
       <label class="field">
         <span>Nombre de jugador</span>
-        <input id="input-nickname" type="text" maxlength="14" placeholder="Invocador123" />
+        <input id="input-nickname" type="text" maxlength="14" placeholder="Tu nombre" autocomplete="nickname" />
       </label>
 
-      <button class="btn primary" id="btn-login-anon">Entrar como invitado</button>
-      <button class="btn ghost" id="btn-login-google">Continuar con Google</button>
+      <label class="field">
+        <span>Correo electrónico</span>
+        <input id="input-email" type="email" placeholder="tu@correo.com" autocomplete="email" />
+      </label>
 
-      <p class="hint" id="login-status">Conectando…</p>
+      <label class="field">
+        <span>Contraseña</span>
+        <input id="input-password" type="password" minlength="6" placeholder="Mínimo 6 caracteres" autocomplete="current-password" />
+      </label>
+
+      <div class="auth-actions">
+        <button class="btn primary" id="btn-register">Crear cuenta</button>
+        <button class="btn ghost" id="btn-login">Iniciar sesión</button>
+      </div>
+      <p class="hint" id="login-status">Crea una cuenta o inicia sesión para continuar.</p>
     </div>
   </section>
 
@@ -125,6 +136,15 @@
           </div>
         </div>
 
+        <div class="lobby-section">
+          <h4>Mapa</h4>
+          <div class="mode-btns" id="map-btns">
+            <button class="chip active" data-map="neon-district">Distrito Neon</button>
+            <button class="chip" data-map="orbital-yard">Astillero Orbital</button>
+            <button class="chip" data-map="reactor-core">Núcleo Reactor</button>
+          </div>
+        </div>
+
         <button class="btn primary big-btn" id="btn-start" disabled>Iniciar partida</button>
       </div>
 
@@ -178,7 +198,7 @@
       <ul class="sb-rows" id="hud-rows"></ul>
     </div>
 
-    <ul class="killfeed" id="killfeed"></ul>
+    <ul class="killfeed" id="killfeed" aria-live="polite"></ul>
 
     <div class="crosshair" id="crosshair"><i></i><i></i><i></i><i></i></div>
 
@@ -188,7 +208,7 @@
     </div>
 
     <div class="hud-ammo glass">
-      <b id="hud-ammo-count">∞</b><small>PISTOLA</small>
+      <b id="hud-ammo-count">10/10</b><small>PISTOLA · R RECARGAR</small>
     </div>
 
     <div class="respawn-overlay" id="respawn-overlay" hidden>
