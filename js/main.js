@@ -240,6 +240,10 @@ document.getElementById('btn-start').addEventListener('click', () => {
     game.startMatch(mode, true, currentRoomCode, selectedMap);
 });
 
+document.getElementById('btn-training').addEventListener('click', () => {
+    game.startTraining(selectedMap);
+});
+
 // --- SALIR DE PARTIDA ---
 document.getElementById('btn-leave-match').addEventListener('click', () => {
     game.stop();

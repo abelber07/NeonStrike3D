@@ -60,6 +60,10 @@ export class GameEngine {
         this.lastFrameTime = performance.now();
         this.connectionFailureHandled = new Set();
         this.reconnectTimer = null;
+        this.training = false;
+        this.trainingRound = 0;
+        this.trainingBots = new Set();
+        this.trainingNextRoundTimer = null;
 
         this.initThree();
         this.initInputs();
@@ -374,6 +378,11 @@ export class GameEngine {
     }
 
     startMatch(mode, isHost, peerId = null, mapId = this.mapId) {
+        this.training = false;
+        this.trainingBots.clear();
+        Object.values(this.remotePlayers).forEach(player => this.scene.remove(player));
+        this.remotePlayers = {};
+        document.getElementById('hud-round').hidden = true;
         this.ui.ocultarTodas();
         this.ui.mostrarHUD(true);
         this.isRunning = true;
@@ -381,8 +390,6 @@ export class GameEngine {
         this.isHost = isHost;
         this.mode = mode;
         this.createMap(mapId);
-        Object.values(this.remotePlayers).forEach(player => this.scene.remove(player));
-        this.remotePlayers = {};
         this.hp = 100;
         this.ammo = this.magazineSize;
         this.isReloading = false;
@@ -407,6 +414,127 @@ export class GameEngine {
         }
 
         this.animate();
+    }
+
+    startTraining(mapId = this.mapId) {
+        this.stop();
+        this.training = true;
+        this.isHost = false;
+        this.matchStarted = true;
+        this.isRunning = true;
+        this.mode = 'training';
+        this.trainingRound = 0;
+        this.peer = null;
+        this.conn = null;
+        Object.values(this.remotePlayers).forEach(player => this.scene.remove(player));
+        this.remotePlayers = {};
+        this.createMap(mapId);
+        this.ui.ocultarTodas();
+        this.ui.mostrarHUD(true);
+        this.player.position.set(0, 0, 0);
+        this.player.visible = false;
+        this.viewWeapon.visible = true;
+        this.hp = 100;
+        this.ammo = this.magazineSize;
+        this.combatants.clear();
+        this.lobbyPlayers.clear();
+        this.combatants.set('local', { name: this.playerName, hp: 100, kills: 0, streak: 0 });
+        this.ui.actualizarHUD(this.hp, `${this.ammo}/${this.magazineSize}`);
+        this.nextTrainingRound();
+        this.animate();
+    }
+
+    nextTrainingRound() {
+        this.trainingRound += 1;
+        this.trainingBots.forEach(id => {
+            if (this.remotePlayers[id]) this.scene.remove(this.remotePlayers[id]);
+            delete this.remotePlayers[id];
+            this.combatants.delete(id);
+        });
+        this.trainingBots.clear();
+        const count = Math.min(12, 1 + this.trainingRound);
+        for (let i = 0; i < count; i++) {
+            const id = `bot-${this.trainingRound}-${i}`;
+            const bot = this.createCharacter(0xff4d4d);
+            const angle = (i / count) * Math.PI * 2;
+            bot.position.set(Math.cos(angle) * (8 + this.trainingRound), 0, Math.sin(angle) * (8 + this.trainingRound));
+            bot.userData.bot = true;
+            bot.userData.targetYaw = Math.atan2(-bot.position.x, -bot.position.z);
+            this.scene.add(bot);
+            this.remotePlayers[id] = bot;
+            this.trainingBots.add(id);
+            this.combatants.set(id, {
+                name: `Bot ${i + 1}`,
+                hp: 100,
+                kills: 0,
+                streak: 0
+            });
+        }
+        const roundHud = document.getElementById('hud-round');
+        roundHud.hidden = false;
+        roundHud.textContent = `RONDA ${this.trainingRound} · BOTS ${count} · DIFICULTAD ${this.trainingRound}`;
+        this.ui.actualizarScoreboard(
+            [{ name: this.playerName, kills: 0 }, ...Array.from(this.trainingBots).map(id => ({ name: this.combatants.get(id).name, kills: 0 }))],
+            'ENTRENAMIENTO'
+        );
+        this.ui.addKillfeed(`Ronda ${this.trainingRound}: aparecen ${count} bots`);
+    }
+
+    updateTrainingBots(dt) {
+        if (!this.training || this.isRespawning) return;
+        const difficulty = this.trainingRound;
+        this.trainingBots.forEach(id => {
+            const bot = this.remotePlayers[id];
+            const stats = this.combatants.get(id);
+            if (!bot || !stats || stats.hp <= 0) return;
+            const toPlayer = this.player.position.clone().sub(bot.position);
+            const distance = toPlayer.length();
+            toPlayer.y = 0;
+            if (distance > 5) {
+                toPlayer.normalize();
+                const next = bot.position.clone().addScaledVector(toPlayer, (1.1 + difficulty * 0.12) * dt);
+                if (this.canOccupy(next)) bot.position.copy(next);
+            }
+            bot.userData.targetYaw = Math.atan2(
+                this.player.position.x - bot.position.x,
+                this.player.position.z - bot.position.z
+            ) + Math.PI;
+            bot.rotation.y = bot.userData.targetYaw;
+            bot.userData.botCooldown = (bot.userData.botCooldown || 0) - dt;
+            if (distance < 28 && bot.userData.botCooldown <= 0) {
+                bot.userData.botCooldown = Math.max(0.45, 1.5 - difficulty * 0.08);
+                if (Math.random() < Math.min(0.9, 0.28 + difficulty * 0.06)) {
+                    this.recibirDaño(8 + Math.min(12, difficulty));
+                }
+            }
+        });
+    }
+
+    handleTrainingShot(origin, direction) {
+        const targets = Array.from(this.trainingBots)
+            .map(id => this.remotePlayers[id])
+            .filter(Boolean);
+        const hit = this.raycaster.intersectObjects(targets, true)[0];
+        if (!hit) return;
+        const targetId = Array.from(this.trainingBots).find(id => {
+            const bot = this.remotePlayers[id];
+            return hit.object === bot || hit.object.parent === bot || bot.children.includes(hit.object);
+        });
+        if (!targetId) return;
+        const stats = this.combatants.get(targetId);
+        if (!stats) return;
+        stats.hp -= 34;
+        if (stats.hp <= 0) {
+            const botName = stats.name;
+            this.ui.addKillfeed(`${this.playerName} eliminó a ${botName}`);
+            this.trainingBots.delete(targetId);
+            this.scene.remove(this.remotePlayers[targetId]);
+            delete this.remotePlayers[targetId];
+            this.combatants.delete(targetId);
+            if (this.trainingBots.size === 0) {
+                this.trainingNextRoundTimer = setTimeout(() => this.nextTrainingRound(), 1800);
+            }
+        }
     }
 
     prepareHost(roomId, mapId = this.mapId) {
@@ -717,6 +845,7 @@ export class GameEngine {
         const shot = this.getShotData();
         if (!shot) return;
         const { origin, direction } = shot;
+        if (this.training) this.handleTrainingShot(origin, direction);
 
         this.raycaster.set(origin, direction);
         const intersects = this.raycaster.intersectObjects(this.coverMeshes, true);
@@ -847,6 +976,7 @@ export class GameEngine {
         const now = performance.now();
         const dt = Math.min(0.05, Math.max(0.001, (now - this.lastFrameTime) / 1000));
         this.lastFrameTime = now;
+        this.updateTrainingBots(dt);
 
         this.camera.rotation.order = 'YXZ';
         this.camera.rotation.y = this.mouseX;
@@ -920,6 +1050,14 @@ export class GameEngine {
             this.respawnTimer = null;
         }
         this.isRespawning = false;
+        if (this.trainingNextRoundTimer) {
+            clearTimeout(this.trainingNextRoundTimer);
+            this.trainingNextRoundTimer = null;
+        }
+        this.training = false;
+        this.trainingBots.clear();
+        const roundHud = document.getElementById('hud-round');
+        if (roundHud) roundHud.hidden = true;
         if (this.viewWeapon) this.viewWeapon.visible = false;
         if (this.reloadTimer) {
             clearTimeout(this.reloadTimer);
