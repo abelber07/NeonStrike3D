@@ -2,6 +2,7 @@
 import { initializeApp } from "firebase/app";
 import {
     getAuth,
+    GoogleAuthProvider,
     onAuthStateChanged,
     updateProfile,
     createUserWithEmailAndPassword,
@@ -50,6 +51,12 @@ export const registrarCuenta = async (email, password, nickname) => {
 
 export const iniciarSesion = async (email, password) => {
     const result = await signInWithEmailAndPassword(auth, email, password);
+    return result.user;
+};
+
+export const loginGoogle = async () => {
+    const provider = new GoogleAuthProvider();
+    const result = await signInWithPopup(auth, provider);
     return result.user;
 };
 

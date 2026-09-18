@@ -4,6 +4,7 @@ import { GameEngine } from './game.js';
 import {
     registrarCuenta,
     iniciarSesion,
+    loginGoogle,
     escucharAuth,
     prepararAutenticacionManual,
     obtenerPerfilUsuario,
@@ -17,6 +18,7 @@ const game = new GameEngine(ui);
 game.onLobbyChanged = players => ui.updateLobbyUI(players, isHost);
 let currentUser = null;
 let currentProfile = null;
+let pendingGoogleNickname = '';
 let selectedMode = 'ffa';
 let selectedMap = 'neon-district';
 
@@ -92,7 +94,9 @@ const showAuthError = (error) => {
         'auth/invalid-credential': 'Correo o contraseña incorrectos.',
         'auth/invalid-email': 'Introduce un correo válido.',
         'auth/weak-password': 'La contraseña debe tener al menos 6 caracteres.',
-        'auth/operation-not-allowed': 'Activa el acceso por correo y contraseña en Firebase Authentication.'
+        'auth/operation-not-allowed': 'Activa el proveedor de acceso correspondiente en Firebase Authentication.',
+        'auth/popup-blocked': 'El navegador ha bloqueado la ventana de Google. Permite las ventanas emergentes.',
+        'auth/popup-closed-by-user': 'Se canceló el inicio de sesión con Google.'
     };
     return messages[error.code] || error.message;
 };
@@ -124,6 +128,25 @@ document.getElementById('btn-login').addEventListener('click', async () => {
         status.textContent = 'Iniciando sesión…';
         await iniciarSesion(email, password);
     } catch (e) {
+        console.error(e);
+        status.textContent = showAuthError(e);
+    }
+});
+
+document.getElementById('btn-login-google').addEventListener('click', async () => {
+    const nickname = document.getElementById('input-nickname').value.trim();
+    const status = document.getElementById('login-status');
+    if (!nickname) {
+        status.textContent = 'Escribe primero el nombre que usarás en el juego.';
+        document.getElementById('input-nickname').focus();
+        return;
+    }
+    try {
+        pendingGoogleNickname = nickname;
+        status.textContent = 'Abriendo Google…';
+        await loginGoogle();
+    } catch (e) {
+        pendingGoogleNickname = '';
         console.error(e);
         status.textContent = showAuthError(e);
     }
@@ -213,10 +236,11 @@ await prepararAutenticacionManual();
 escucharAuth(async (user) => {
     if (user) {
         currentUser = user;
-        const nickname = user.displayName || document.getElementById('input-nickname').value.trim() || 'Jugador';
+        const nickname = pendingGoogleNickname || user.displayName || document.getElementById('input-nickname').value.trim() || 'Jugador';
         try {
             const perfil = await obtenerPerfilUsuario(user.uid, nickname);
             await persistProfile(perfil);
+            pendingGoogleNickname = '';
             ui.showScreen('screen-menu');
         } catch (error) {
             console.error(error);
