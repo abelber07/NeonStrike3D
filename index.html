@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+<title>NEON STRIKE 3D</title>
+
+<link rel="stylesheet" href="./css/style.css" />
+
+<!-- PeerJS: build UMD, se expone como global `Peer` -->
+<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+
+<!-- Import map para módulos ESM desde CDN -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+    "firebase/app": "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js",
+    "firebase/auth": "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js",
+    "firebase/firestore": "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js"
+  }
+}
+</script>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ============ VIEWPORT 3D ============ -->
+  <div id="viewport"></div>
+
+  <!-- ============ LOGIN ============ -->
+  <section class="screen active" id="screen-login">
+    <div class="login-card glass">
+      <h1 class="brand">NEON<span>STRIKE</span></h1>
+      <p class="sub">Shooter 3D en tercera persona · P2P</p>
+
+      <label class="field">
+        <span>Nombre de jugador</span>
+        <input id="input-nickname" type="text" maxlength="14" placeholder="Invocador123" />
+      </label>
+
+      <button class="btn primary" id="btn-login-anon">Entrar como invitado</button>
+      <button class="btn ghost" id="btn-login-google">Continuar con Google</button>
+
+      <p class="hint" id="login-status">Conectando…</p>
+    </div>
+  </section>
+
+  <!-- ============ MENÚ PRINCIPAL ============ -->
+  <section class="screen" id="screen-menu">
+    <div class="menu-bg"></div>
+    <div class="menu-overlay"></div>
+
+    <div class="menu-content">
+      <h1 class="brand big">NEON<span>STRIKE</span></h1>
+
+      <nav class="main-nav">
+        <button class="nav-btn" data-nav="play">       <i>▶</i> Jugar          </button>
+        <button class="nav-btn" data-nav="shop">       <i>◈</i> Tienda         </button>
+        <button class="nav-btn" data-nav="locker">     <i>◐</i> Taquilla       </button>
+        <button class="nav-btn" data-nav="battlepass"> <i>★</i> Pase de Batalla</button>
+      </nav>
+
+      <div class="player-strip glass">
+        <div class="avatar" id="menu-avatar">?</div>
+        <div class="meta">
+          <div class="row">
+            <strong id="menu-name">Jugador</strong>
+            <span class="tag" id="menu-tag">[N00B]</span>
+          </div>
+          <div class="bar xp"><div class="fill" id="menu-xp-fill"></div></div>
+          <small>Nivel <b id="menu-level">1</b> · <span id="menu-xp-text">0/100 XP</span></small>
+        </div>
+        <div class="coins">◈ <b id="menu-coins">0</b></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ JUGAR / LOBBY ============ -->
+  <section class="screen" id="screen-play">
+    <header class="topbar">
+      <button class="btn ghost back" data-back="menu">← Volver</button>
+      <h2>Salas</h2>
+    </header>
+
+    <div class="play-grid">
+
+      <div class="panel glass">
+        <h3>Crear sala</h3>
+        <label class="field">
+          <span>Código de sala</span>
+          <input id="input-room-code" type="text" maxlength="12" placeholder="mi-sala-01" />
+        </label>
+        <button class="btn primary" id="btn-host">Crear como Host</button>
+
+        <hr />
+
+        <h3>Unirse a sala</h3>
+        <label class="field">
+          <span>ID de PeerJS del Host</span>
+          <input id="input-join-id" type="text" placeholder="ns3d-1234" />
+        </label>
+        <button class="btn" id="btn-join">Unirse</button>
+
+        <p class="hint" id="play-status">—</p>
+      </div>
+
+      <div class="panel glass" id="lobby-panel" hidden>
+        <h3>Sala <span class="code" id="lobby-code">—</span></h3>
+
+        <div class="lobby-section">
+          <h4>Jugadores <span id="lobby-count">0</span></h4>
+          <ul class="player-list" id="lobby-players"></ul>
+        </div>
+
+        <div class="lobby-section">
+          <h4>Modo de juego</h4>
+          <div class="mode-btns" id="mode-btns">
+            <button class="chip active" data-mode="ffa">FFA</button>
+            <button class="chip" data-mode="1v1">1v1</button>
+            <button class="chip" data-mode="2v2">2v2</button>
+            <button class="chip" data-mode="3v3">3v3</button>
+          </div>
+        </div>
+
+        <button class="btn primary big-btn" id="btn-start" disabled>Iniciar partida</button>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============ TIENDA ============ -->
+  <section class="screen" id="screen-shop">
+    <header class="topbar">
+      <button class="btn ghost back" data-back="menu">← Volver</button>
+      <h2>Tienda</h2>
+      <div class="coins">◈ <b id="shop-coins">0</b></div>
+    </header>
+    <div class="grid-items" id="shop-grid"></div>
+  </section>
+
+  <!-- ============ TAQUILLA ============ -->
+  <section class="screen" id="screen-locker">
+    <header class="topbar">
+      <button class="btn ghost back" data-back="menu">← Volver</button>
+      <h2>Taquilla</h2>
+    </header>
+
+    <div class="locker-tabs" id="locker-tabs">
+      <button class="chip active" data-cat="skin">Skins de arma</button>
+      <button class="chip" data-cat="killEffect">Efectos de kill</button>
+      <button class="chip" data-cat="tag">Tags</button>
+    </div>
+
+    <div class="grid-items" id="locker-grid"></div>
+  </section>
+
+  <!-- ============ PASE DE BATALLA ============ -->
+  <section class="screen" id="screen-battlepass">
+    <header class="topbar">
+      <button class="btn ghost back" data-back="menu">← Volver</button>
+      <h2>Pase de Batalla</h2>
+      <div class="coins">◈ <b id="bp-coins">0</b></div>
+    </header>
+    <div class="bp-track" id="bp-track"></div>
+  </section>
+
+  <!-- ============ HUD DE PARTIDA ============ -->
+  <div id="hud" hidden>
+
+    <div class="hud-scoreboard glass" id="hud-scoreboard">
+      <div class="sb-header">
+        <span class="sb-mode" id="hud-mode">FFA</span>
+        <span class="sb-map" id="hud-map">—</span>
+      </div>
+      <ul class="sb-rows" id="hud-rows"></ul>
+    </div>
+
+    <ul class="killfeed" id="killfeed"></ul>
+
+    <div class="crosshair" id="crosshair"><i></i><i></i><i></i><i></i></div>
+
+    <div class="hud-health glass">
+      <div class="hp-bar"><div class="fill" id="hud-hp-fill"></div></div>
+      <span id="hud-hp">100</span>
+    </div>
+
+    <div class="hud-ammo glass">
+      <b id="hud-ammo-count">∞</b><small>PISTOLA</small>
+    </div>
+
+    <div class="respawn-overlay" id="respawn-overlay" hidden>
+      <h2>ELIMINADO</h2>
+      <p>Reapareces en <b id="respawn-timer">3</b>…</p>
+    </div>
+
+    <div class="match-end glass" id="match-end" hidden>
+      <h2 id="match-end-title">¡Victoria!</h2>
+      <ul id="match-end-stats"></ul>
+      <button class="btn primary" id="btn-exit-match">Volver al menú</button>
+    </div>
+
+    <button class="btn ghost exit-match" id="btn-leave-match">Salir</button>
+  </div>
+
+</div>
+
+<script type="module" src="./js/main.js"></script>
+</body>
+</html>
