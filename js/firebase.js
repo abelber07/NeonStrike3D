@@ -3,6 +3,7 @@ import { initializeApp } from "firebase/app";
 import {
     getAuth,
     GoogleAuthProvider,
+    signInWithPopup,
     onAuthStateChanged,
     updateProfile,
     createUserWithEmailAndPassword,

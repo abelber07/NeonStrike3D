@@ -95,6 +95,7 @@ const showAuthError = (error) => {
         'auth/invalid-email': 'Introduce un correo válido.',
         'auth/weak-password': 'La contraseña debe tener al menos 6 caracteres.',
         'auth/operation-not-allowed': 'Activa el proveedor de acceso correspondiente en Firebase Authentication.',
+        'auth/unauthorized-domain': 'Este dominio no está autorizado en Firebase Authentication.',
         'auth/popup-blocked': 'El navegador ha bloqueado la ventana de Google. Permite las ventanas emergentes.',
         'auth/popup-closed-by-user': 'Se canceló el inicio de sesión con Google.'
     };
