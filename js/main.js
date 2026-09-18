@@ -18,7 +18,6 @@ import {
 
 const ui = new UIManager();
 const game = new GameEngine(ui);
-game.onLobbyChanged = players => ui.updateLobbyUI(players, isHost);
 let currentUser = null;
 let currentProfile = null;
 let pendingGoogleNickname = '';
@@ -33,7 +32,6 @@ const setRememberDevice = async (remember) => {
     localStorage.setItem(rememberStorageKey, String(remember));
     await configurarPersistencia(remember);
 };
-let selectedMode = 'ffa';
 let selectedMap = 'neon-district';
 
 const shopItems = [
@@ -71,7 +69,7 @@ async function handleShopItem(item) {
     try {
         await persistProfile(await comprarItem(currentUser.uid, item.id));
     } catch (error) {
-        document.getElementById('play-status').textContent = `Tienda: ${error.message}`;
+        console.error(error);
     }
 }
 
@@ -82,7 +80,7 @@ async function handleLockerItem(item) {
         await actualizarPerfil(currentUser.uid, changes);
         await persistProfile({ ...currentProfile, ...changes });
     } catch (error) {
-        document.getElementById('play-status').textContent = `Taquilla: ${error.message}`;
+        console.error(error);
     }
 };
 
@@ -91,7 +89,7 @@ async function claimBattlePass(tier) {
     try {
         await persistProfile(await reclamarRecompensa(currentUser.uid, tier.nivel));
     } catch (error) {
-        document.getElementById('play-status').textContent = `Pase: ${error.message}`;
+        console.error(error);
     }
 }
 
@@ -191,53 +189,12 @@ document.querySelectorAll('[data-back]').forEach(btn => {
     });
 });
 
-// --- LOBBY ---
-let isHost = false;
-let currentRoomCode = '';
-
-document.getElementById('btn-host').addEventListener('click', () => {
-    isHost = true;
-    currentRoomCode = (document.getElementById('input-room-code').value.trim() || 'ns3d-' + Math.floor(Math.random() * 9000 + 1000))
-        .replace(/[^a-zA-Z0-9_-]/g, '-');
-    document.getElementById('lobby-panel').hidden = false;
-    document.getElementById('lobby-code').textContent = currentRoomCode;
-    document.getElementById('play-status').textContent = `Comparte este ID con tus amigos: ${currentRoomCode}`;
-    ui.updateLobbyUI([{ name: 'Tú (Host)', isHost: true }], true);
-    game.prepareHost(currentRoomCode, selectedMap);
-});
-
-document.getElementById('btn-join').addEventListener('click', () => {
-    const peerId = document.getElementById('input-join-id').value.trim();
-    if (!peerId) return alert('Introduce el ID de la sala del Host');
-    isHost = false;
-    currentRoomCode = peerId;
-    document.getElementById('lobby-panel').hidden = false;
-    document.getElementById('lobby-code').textContent = peerId;
-    ui.updateLobbyUI([{ name: game.playerName || 'Tú', isHost: false }], false);
-
-    game.connectToHost(peerId);
-});
-
-// Modos de juego (solo cambia visual)
-document.querySelectorAll('#mode-btns .chip').forEach(chip => {
-    chip.addEventListener('click', (e) => {
-        document.querySelectorAll('#mode-btns .chip').forEach(c => c.classList.remove('active'));
-        e.currentTarget.classList.add('active');
-        selectedMode = e.currentTarget.dataset.mode;
+document.querySelectorAll('.scenario-card').forEach(card => {
+    card.addEventListener('click', event => {
+        document.querySelectorAll('.scenario-card').forEach(item => item.classList.remove('active'));
+        event.currentTarget.classList.add('active');
+        selectedMap = event.currentTarget.dataset.map;
     });
-});
-
-document.querySelectorAll('#map-btns .chip').forEach(chip => {
-        chip.addEventListener('click', e => {
-            document.querySelectorAll('#map-btns .chip').forEach(item => item.classList.remove('active'));
-            e.currentTarget.classList.add('active');
-            selectedMap = e.currentTarget.dataset.map;
-        });
-});
-
-document.getElementById('btn-start').addEventListener('click', () => {
-    const mode = document.querySelector('#mode-btns .chip.active')?.dataset.mode || 'ffa';
-    game.startMatch(mode, true, currentRoomCode, selectedMap);
 });
 
 document.getElementById('btn-training').addEventListener('click', () => {

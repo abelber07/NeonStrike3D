@@ -118,22 +118,30 @@ input:focus { border-color: var(--accent); }
 .topbar .coins { color: gold; }
 
 /* Play grid */
-.play-grid { display: flex; gap: 24px; width: 90%; max-width: 900px; margin-top: 60px; }
+.training-layout { display: grid; grid-template-columns: minmax(260px, 0.8fr) minmax(420px, 1.2fr); gap: 24px; width: min(1000px, 92%); margin-top: 60px; }
 .panel { flex: 1; }
 .panel h3 { margin-bottom: 16px; font-size: 16px; }
 .panel h4 { margin-bottom: 8px; font-size: 14px; color: var(--text-muted); }
-.panel hr { border: 0; border-top: 1px solid #333; margin: 20px 0; }
-.lobby-section { margin: 16px 0; }
-.player-list { list-style: none; }
-.player-list li { padding: 8px; background: rgba(0,0,0,0.3); border-radius: 4px; margin-bottom: 4px; font-size: 13px; }
-.mode-btns, .locker-tabs { display: flex; gap: 8px; flex-wrap: wrap; }
+.locker-tabs { display: flex; gap: 8px; flex-wrap: wrap; }
 .chip {
     padding: 8px 14px; border-radius: 20px; border: 1px solid #444;
     background: transparent; color: white; cursor: pointer; font-size: 13px;
     transition: 0.2s;
 }
 .chip:hover, .chip.active { background: var(--accent); color: #000; border-color: var(--accent); }
-.code { color: var(--accent); font-family: monospace; font-size: 12px; }
+.eyebrow { color: var(--accent); font-size: 10px; letter-spacing: .16em; }
+.training-intro h3 { font-size: 28px; margin: 14px 0 8px; }
+.controls-hint { color: var(--text-muted); font-size: 11px; line-height: 1.5; margin-top: 18px; }
+.scenario-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.scenario-card { border: 1px solid rgba(255,255,255,.12); border-radius: 12px; overflow: hidden; padding: 0 0 14px; text-align: left; color: var(--text-main); background: rgba(14, 20, 34, .9); cursor: pointer; transition: .2s; }
+.scenario-card:hover, .scenario-card.active { border-color: var(--accent); transform: translateY(-4px); box-shadow: 0 0 20px rgba(0,229,255,.18); }
+.scenario-card strong, .scenario-card small { display: block; padding: 0 12px; }
+.scenario-card strong { margin-top: 12px; font-size: 13px; }
+.scenario-card small { color: var(--text-muted); font-size: 11px; line-height: 1.4; margin-top: 5px; }
+.scenario-art { display: block; height: 150px; background-color: #14243c; background-size: cover; }
+.district-art { background: linear-gradient(145deg, #071d3a, #e5008b 140%), repeating-linear-gradient(90deg, transparent 0 22px, rgba(0,229,255,.22) 23px 24px); }
+.orbital-art { background: linear-gradient(145deg, #241914, #ff9d2e 145%), repeating-linear-gradient(0deg, transparent 0 28px, rgba(255,190,80,.25) 29px 30px); }
+.reactor-art { background: radial-gradient(circle at 68% 35%, #ff4d9d, transparent 25%), linear-gradient(145deg, #170d2e, #8b35c8); }
 
 /* Grid items (tienda/taquilla) */
 .grid-items {
@@ -237,12 +245,12 @@ input:focus { border-color: var(--accent); }
 .bp-tier .tier-num { font-size: 12px; color: var(--text-muted); }
 .bp-tier .reward { font-size: 32px; margin: 8px 0; }
 .bp-tier strong { display: block; min-height: 36px; font-size: 12px; margin-bottom: 10px; }
-.lobby-section + .lobby-section { border-top: 1px solid rgba(255,255,255,0.08); padding-top: 12px; }
-
 @media (max-width: 700px) {
     .menu-content { left: 6%; right: 6%; width: auto; }
     .brand.big { font-size: 36px; }
-    .play-grid { flex-direction: column; overflow-y: auto; margin-top: 72px; }
+    .training-layout { grid-template-columns: 1fr; overflow-y: auto; margin-top: 72px; }
+    .scenario-grid { grid-template-columns: 1fr; }
+    .scenario-art { height: 100px; }
     .grid-items { grid-template-columns: repeat(auto-fill, minmax(145px, 1fr)); }
     .hud-scoreboard { min-width: 240px; }
     .hud-health { left: 12px; bottom: 12px; width: 170px; }

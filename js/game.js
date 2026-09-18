@@ -1,16 +1,37 @@
-// js/game.js
 import * as THREE from 'three';
 
-const PEER_OPTIONS = {
-    host: '0.peerjs.com',
-    port: 443,
-    secure: true,
-    path: '/',
-    debug: 1,
-    config: {
-        iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' }
+const SCENARIOS = {
+    'neon-district': {
+        label: 'Distrito Neon',
+        ground: 0x101a2b,
+        grid: 0x00e5ff,
+        line: 0x1a2a3a,
+        accent: 0xff00aa,
+        cover: [
+            [-28, 3, -18, 8, 6, 4], [-12, 2, 4, 4, 4, 10], [10, 3, -10, 6, 6, 6],
+            [28, 2, 15, 10, 4, 4], [0, 4, 24, 4, 8, 4], [-30, 5, 28, 5, 10, 5]
+        ]
+    },
+    'orbital-yard': {
+        label: 'Astillero Orbital',
+        ground: 0x24222d,
+        grid: 0xffa62b,
+        line: 0x463426,
+        accent: 0xffa62b,
+        cover: [
+            [-30, 2, -20, 12, 4, 4], [-12, 5, 0, 4, 10, 4], [12, 2, 18, 14, 4, 4],
+            [30, 4, -14, 5, 8, 5], [0, 2, -28, 4, 4, 14], [24, 2, 26, 6, 4, 6]
+        ]
+    },
+    'reactor-core': {
+        label: 'Núcleo Reactor',
+        ground: 0x21152b,
+        grid: 0x9d4edd,
+        line: 0x39204e,
+        accent: 0x9d4edd,
+        cover: [
+            [-24, 4, -18, 5, 8, 5], [0, 2, -20, 14, 4, 4], [25, 5, -8, 5, 10, 5],
+            [-18, 2, 15, 8, 4, 4], [12, 3, 18, 6, 6, 6], [0, 2, 30, 16, 4, 4]
         ]
     }
 };
@@ -22,113 +43,334 @@ export class GameEngine {
         this.camera = null;
         this.renderer = null;
         this.player = null;
-        this.playerBody = null;
-        this.raycaster = new THREE.Raycaster();
-        this.keys = { w: false, a: false, s: false, d: false, space: false, shift: false };
-        this.isRunning = false;
-        this.matchStarted = false;
-        this.peer = null;
-        this.conn = null;
-        this.connections = new Map();
-        this.localPeerId = null;
-        this.lastShotByPeer = new Map();
-        this.onLobbyChanged = null;
-        this.playerName = 'Jugador';
-        this.lobbyPlayers = new Map();
-        this.combatants = new Map();
-        this.isHost = false;
-        this.remotePlayers = {};
+        this.viewWeapon = null;
         this.coverMeshes = [];
         this.worldObjects = [];
-        this.mapId = 'neon-district';
-        this.animationFrame = null;
+        this.bots = new Map();
+        this.tracers = [];
+        this.effects = [];
+        this.raycaster = new THREE.Raycaster();
+        this.keys = { w: false, a: false, s: false, d: false, space: false, shift: false };
+        this.moveVelocity = new THREE.Vector3();
         this.velocityY = 0;
         this.mouseX = 0;
         this.mouseY = 0;
-        this.cameraTarget = new THREE.Vector3(0, 1.35, 0);
-        this.moveVelocity = new THREE.Vector3();
-        this.isGrounded = true;
+        this.lastFrameTime = performance.now();
+        this.animationFrame = null;
+        this.isRunning = false;
+        this.isRespawning = false;
+        this.training = false;
+        this.trainingRound = 0;
+        this.trainingNextRoundTimer = null;
+        this.playerName = 'Jugador';
+        this.mapId = 'neon-district';
         this.hp = 100;
-        this.canShoot = true;
         this.magazineSize = 10;
         this.ammo = this.magazineSize;
-        this.shotCooldown = 280;
+        this.canShoot = true;
         this.isReloading = false;
         this.reloadTimer = null;
         this.respawnTimer = null;
-        this.isRespawning = false;
-        this.lastFrameTime = performance.now();
-        this.connectionFailureHandled = new Set();
-        this.reconnectTimer = null;
-        this.training = false;
-        this.trainingRound = 0;
-        this.trainingBots = new Set();
-        this.trainingNextRoundTimer = null;
-
         this.initThree();
         this.initInputs();
     }
 
-    createNeonDistrictDetails(theme) {
-        const buildingMaterial = new THREE.MeshStandardMaterial({
-            color: 0x17243b,
-            emissive: 0x07101e,
-            emissiveIntensity: 0.35,
-            metalness: 0.55,
-            roughness: 0.5
+    initThree() {
+        this.scene = new THREE.Scene();
+        this.scene.background = new THREE.Color(0x070b13);
+        this.scene.fog = new THREE.Fog(0x070b13, 20, 92);
+        this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        this.renderer = new THREE.WebGLRenderer({ antialias: true });
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+        this.renderer.shadowMap.enabled = true;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.getElementById('viewport').appendChild(this.renderer.domElement);
+
+        this.scene.add(new THREE.HemisphereLight(0xb9e9ff, 0x111426, 1.3));
+        const sun = new THREE.DirectionalLight(0xffffff, 1.5);
+        sun.position.set(18, 32, 14);
+        sun.castShadow = true;
+        sun.shadow.mapSize.set(2048, 2048);
+        this.scene.add(sun);
+        this.createMap(this.mapId);
+
+        this.player = this.createCharacter(0x00e5ff);
+        this.player.visible = false;
+        this.scene.add(this.player);
+        this.viewWeapon = this.createFirstPersonWeapon();
+        this.camera.add(this.viewWeapon);
+        this.scene.add(this.camera);
+        window.addEventListener('resize', () => {
+            this.camera.aspect = window.innerWidth / window.innerHeight;
+            this.camera.updateProjectionMatrix();
+            this.renderer.setSize(window.innerWidth, window.innerHeight);
         });
-        const windowMaterial = new THREE.MeshStandardMaterial({
-            color: 0x8ffaff,
-            emissive: theme.grid,
-            emissiveIntensity: 1.4
+    }
+
+    addWorldObject(object) {
+        this.scene.add(object);
+        this.worldObjects.push(object);
+    }
+
+    createMap(mapId) {
+        this.worldObjects.forEach(object => this.scene.remove(object));
+        this.worldObjects = [];
+        this.coverMeshes = [];
+        const key = SCENARIOS[mapId] ? mapId : 'neon-district';
+        const scenario = SCENARIOS[key];
+        this.mapId = key;
+        this.scene.background.set(scenario.ground);
+        this.scene.fog.color.set(scenario.ground);
+
+        const ground = new THREE.Mesh(
+            new THREE.PlaneGeometry(200, 200),
+            new THREE.MeshStandardMaterial({ color: scenario.ground, roughness: 0.82, metalness: 0.12 })
+        );
+        ground.rotation.x = -Math.PI / 2;
+        ground.receiveShadow = true;
+        this.addWorldObject(ground);
+        const grid = new THREE.GridHelper(200, 50, scenario.grid, scenario.line);
+        grid.position.y = 0.02;
+        this.addWorldObject(grid);
+
+        const coverMaterial = new THREE.MeshStandardMaterial({
+            color: scenario.accent, emissive: scenario.accent, emissiveIntensity: 0.08,
+            metalness: 0.48, roughness: 0.55
         });
-        const buildings = [
-            [-42, 6, -38, 10, 12, 8], [42, 8, -35, 12, 16, 10],
-            [-45, 5, 38, 14, 10, 10], [42, 5, 38, 10, 10, 14]
-        ];
-        buildings.forEach(([x, y, z, sx, sy, sz]) => {
-            const building = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), buildingMaterial.clone());
-            building.position.set(x, y, z);
-            building.castShadow = true;
-            building.receiveShadow = true;
-            this.addWorldObject(building);
-            this.coverMeshes.push(building);
-            for (let row = 0; row < 3; row++) {
-                const windows = new THREE.Mesh(new THREE.BoxGeometry(sx * 0.55, 0.16, 0.08), windowMaterial);
-                windows.position.set(x, y - 3 + row * 3, z - sz / 2 - 0.06);
-                this.addWorldObject(windows);
+        scenario.cover.forEach(([x, y, z, sx, sy, sz], index) => {
+            const cover = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), coverMaterial.clone());
+            cover.position.set(x, y, z);
+            cover.castShadow = true;
+            cover.receiveShadow = true;
+            cover.userData.occluder = true;
+            this.addWorldObject(cover);
+            this.coverMeshes.push(cover);
+            this.addScenarioTrim(cover, scenario, index);
+        });
+        if (key !== 'neon-district') {
+            for (let i = 0; i < 8; i++) {
+                const pillar = new THREE.Mesh(
+                    new THREE.CylinderGeometry(1.1, 1.1, 7, 16),
+                    new THREE.MeshStandardMaterial({ color: 0x303846, emissive: scenario.accent, emissiveIntensity: 0.2 })
+                );
+                pillar.position.set((i % 4) * 18 - 27, 3.5, Math.floor(i / 4) * 30 - 15);
+                pillar.castShadow = true;
+                this.addWorldObject(pillar);
+                this.coverMeshes.push(pillar);
             }
-        });
-        for (let i = 0; i < 10; i++) {
-            const pole = new THREE.Mesh(
-                new THREE.CylinderGeometry(0.08, 0.08, 4.2, 8),
-                new THREE.MeshStandardMaterial({ color: 0x202a3a, metalness: 0.7 })
-            );
-            pole.position.set((i % 5) * 16 - 32, 2.1, i < 5 ? -30 : 30);
-            this.addWorldObject(pole);
-            const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.18, 12, 8), windowMaterial);
-            lamp.position.set(pole.position.x, 4.2, pole.position.z);
-            this.addWorldObject(lamp);
+        }
+        document.getElementById('hud-map').textContent = scenario.label.toUpperCase();
+    }
+
+    addScenarioTrim(cover, scenario, index) {
+        const trim = new THREE.Mesh(
+            new THREE.BoxGeometry(cover.scale.x || 1, 0.06, 0.06),
+            new THREE.MeshBasicMaterial({ color: scenario.grid })
+        );
+        trim.scale.set(cover.geometry.parameters.width, 1, 1);
+        trim.position.set(cover.position.x, cover.position.y + cover.geometry.parameters.height / 2 + 0.04, cover.position.z - cover.geometry.parameters.depth / 2 - 0.03);
+        this.addWorldObject(trim);
+        if (index % 2 === 0) {
+            const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 8), new THREE.MeshBasicMaterial({ color: scenario.grid }));
+            beacon.position.set(cover.position.x, cover.position.y + cover.geometry.parameters.height / 2 + 0.25, cover.position.z);
+            this.addWorldObject(beacon);
         }
     }
 
-    notifyLobby() {
-        if (!this.onLobbyChanged) return;
-        this.onLobbyChanged(Array.from(this.lobbyPlayers.values()));
+    createFirstPersonWeapon() {
+        const group = new THREE.Group();
+        const gunMaterial = new THREE.MeshStandardMaterial({ color: 0x172337, metalness: 0.85, roughness: 0.25 });
+        const glowMaterial = new THREE.MeshStandardMaterial({ color: 0x00e5ff, emissive: 0x00e5ff, emissiveIntensity: 1.7 });
+        const gun = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.2, 0.72), gunMaterial);
+        gun.position.set(0.34, -0.26, -0.72);
+        const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.28, 10), gunMaterial);
+        barrel.rotation.x = Math.PI / 2;
+        barrel.position.set(0.34, -0.24, -1.2);
+        const sight = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.04, 0.16), glowMaterial);
+        sight.position.set(0.34, -0.12, -0.82);
+        const hand = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.16, 0.3), new THREE.MeshStandardMaterial({ color: 0x253c5d }));
+        hand.position.set(0.2, -0.34, -0.55);
+        const flash = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.32, 8), new THREE.MeshBasicMaterial({ color: 0xfff2a3, transparent: true, opacity: 0 }));
+        flash.rotation.x = -Math.PI / 2;
+        flash.position.set(0.34, -0.24, -1.37);
+        group.add(gun, barrel, sight, hand, flash);
+        group.userData.muzzle = barrel;
+        group.userData.flash = flash;
+        return group;
+    }
+
+    createCharacter(color) {
+        const group = new THREE.Group();
+        const armor = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.28, metalness: 0.42, roughness: 0.42 });
+        const dark = new THREE.MeshStandardMaterial({ color: 0x101522, metalness: 0.65, roughness: 0.3 });
+        const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.48, 0.85, 6, 12), armor);
+        body.position.y = 1.15;
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.38, 16, 12), dark);
+        head.position.y = 2.05;
+        const visor = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.12, 0.12), new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: color, emissiveIntensity: 0.8 }));
+        visor.position.set(0, 2.08, -0.32);
+        const shoulder = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 8), armor);
+        shoulder.position.set(-0.48, 1.42, 0);
+        const otherShoulder = shoulder.clone();
+        otherShoulder.position.x = 0.48;
+        const legMaterial = new THREE.MeshStandardMaterial({ color: 0x182033, metalness: 0.5, roughness: 0.45 });
+        const leg = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.58, 0.25), legMaterial);
+        leg.position.set(-0.2, 0.42, 0);
+        const otherLeg = leg.clone();
+        otherLeg.position.x = 0.2;
+        const weapon = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.16, 0.85), dark);
+        weapon.position.set(0.58, 1.25, -0.18);
+        group.add(body, head, visor, shoulder, otherShoulder, leg, otherLeg, weapon);
+        group.userData.legs = [leg, otherLeg];
+        group.traverse(child => { child.castShadow = true; });
+        return group;
+    }
+
+    initInputs() {
+        document.addEventListener('keydown', event => {
+            const key = this.getControlKey(event);
+            if (key) this.keys[key] = true;
+            if (event.code === 'KeyR' && this.isRunning) this.reload();
+            if (this.isRunning && key) event.preventDefault();
+        });
+        document.addEventListener('keyup', event => {
+            const key = this.getControlKey(event);
+            if (key) this.keys[key] = false;
+        });
+        window.addEventListener('blur', () => this.resetControls());
+        document.addEventListener('mousemove', event => {
+            if (!document.pointerLockElement) return;
+            this.mouseX -= event.movementX * 0.0022;
+            this.mouseY = THREE.MathUtils.clamp(this.mouseY - event.movementY * 0.0022, -1.35, 1.35);
+        });
+        document.addEventListener('mousedown', event => {
+            if (event.button === 0 && this.isRunning) this.shoot();
+        });
+        document.addEventListener('click', event => {
+            if (this.isRunning && event.target === this.renderer.domElement && !document.pointerLockElement) {
+                this.renderer.domElement.requestPointerLock();
+            }
+        });
+    }
+
+    getControlKey(event) {
+        return ({ KeyW: 'w', KeyA: 'a', KeyS: 's', KeyD: 'd', Space: 'space', ShiftLeft: 'shift', ShiftRight: 'shift' })[event.code] || null;
+    }
+
+    resetControls() {
+        Object.keys(this.keys).forEach(key => { this.keys[key] = false; });
+    }
+
+    canOccupy(position) {
+        const sphere = new THREE.Sphere(new THREE.Vector3(position.x, position.y + 1.05, position.z), 0.72);
+        return !this.coverMeshes.some(mesh => new THREE.Box3().setFromObject(mesh).intersectsSphere(sphere));
+    }
+
+    startTraining(mapId = this.mapId) {
+        this.stop();
+        this.training = true;
+        this.isRunning = true;
+        this.mapId = mapId;
+        this.trainingRound = 0;
+        this.createMap(mapId);
+        this.player.position.set(0, 0, 0);
+        this.hp = 100;
+        this.ammo = this.magazineSize;
+        this.viewWeapon.visible = true;
+        this.ui.ocultarTodas();
+        this.ui.mostrarHUD(true);
+        this.ui.actualizarHUD(this.hp, `${this.ammo}/${this.magazineSize}`);
+        this.nextTrainingRound();
+        this.lastFrameTime = performance.now();
+        this.animate();
+    }
+
+    nextTrainingRound() {
+        this.trainingRound += 1;
+        this.bots.forEach(bot => this.scene.remove(bot.mesh));
+        this.bots.clear();
+        const count = Math.min(10, 2 + this.trainingRound);
+        for (let i = 0; i < count; i++) {
+            const angle = (i / count) * Math.PI * 2;
+            const mesh = this.createCharacter(i % 2 ? 0xff4d9d : 0xffa62b);
+            mesh.position.set(Math.cos(angle) * (9 + this.trainingRound), 0, Math.sin(angle) * (9 + this.trainingRound));
+            this.scene.add(mesh);
+            this.bots.set(`bot-${i}`, { mesh, hp: 100, cooldown: Math.random(), name: `Bot ${i + 1}` });
+        }
+        const roundHud = document.getElementById('hud-round');
+        roundHud.hidden = false;
+        roundHud.textContent = `RONDA ${this.trainingRound} · ${count} OBJETIVOS · DIFICULTAD ${this.trainingRound}`;
+        this.ui.actualizarScoreboard([{ name: this.playerName, kills: 0 }, ...Array.from(this.bots.values()).map(bot => ({ name: bot.name, kills: 0 }))], 'ENTRENAMIENTO');
+        this.ui.addKillfeed(`Ronda ${this.trainingRound}: objetivos desplegados`);
     }
 
     getShotData() {
         const origin = new THREE.Vector3();
         this.viewWeapon.userData.muzzle.getWorldPosition(origin);
-        const cameraDirection = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
-        this.raycaster.set(this.camera.position, cameraDirection);
-        const aimObjects = [...this.coverMeshes, ...Object.values(this.remotePlayers)];
-        const aimHit = this.raycaster.intersectObjects(aimObjects, true)[0];
-        const aimPoint = aimHit
-            ? aimHit.point
-            : this.camera.position.clone().add(cameraDirection.multiplyScalar(100));
-        const direction = aimPoint.sub(origin).normalize();
-        return { origin, direction };
+        const direction = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion).normalize();
+        this.raycaster.set(this.camera.position, direction);
+        const hit = this.raycaster.intersectObjects([...this.coverMeshes, ...Array.from(this.bots.values()).map(bot => bot.mesh)], true)[0];
+        const aimPoint = hit ? hit.point : this.camera.position.clone().addScaledVector(direction, 100);
+        return { origin, direction: aimPoint.sub(origin).normalize(), aimPoint };
+    }
+
+    shoot() {
+        if (!this.isRunning || !this.canShoot || this.isReloading || this.isRespawning) return;
+        if (this.ammo <= 0) return this.reload();
+        this.canShoot = false;
+        setTimeout(() => { this.canShoot = true; }, 250);
+        this.ammo -= 1;
+        this.ui.actualizarHUD(this.hp, `${this.ammo}/${this.magazineSize}`);
+        const shot = this.getShotData();
+        this.showMuzzleFlash();
+        this.createTracer(shot.origin, shot.aimPoint, 0x8ffaff);
+        this.raycaster.set(shot.origin, shot.direction);
+        const coverHit = this.raycaster.intersectObjects(this.coverMeshes, true)[0];
+        const botHit = this.raycaster.intersectObjects(Array.from(this.bots.values()).map(bot => bot.mesh), true)[0];
+        if (botHit && (!coverHit || botHit.distance < coverHit.distance)) this.damageBot(this.findBot(botHit.object), 34);
+        if (coverHit && (!botHit || coverHit.distance < botHit.distance)) this.createImpact(coverHit.point, 0xffd166);
+        if (this.ammo === 0) this.reload();
+    }
+
+    findBot(object) {
+        return Array.from(this.bots.entries()).find(([, bot]) => object === bot.mesh || object.parent === bot.mesh)?.[0] || null;
+    }
+
+    damageBot(id, damage) {
+        if (!id) return;
+        const bot = this.bots.get(id);
+        if (!bot) return;
+        bot.hp -= damage;
+        this.createImpact(bot.mesh.position.clone().setY(1.2), 0xff4d9d);
+        if (bot.hp > 0) return;
+        this.ui.addKillfeed(`${this.playerName} neutralizó a ${bot.name}`);
+        this.scene.remove(bot.mesh);
+        this.bots.delete(id);
+        if (this.bots.size === 0) {
+            this.trainingNextRoundTimer = setTimeout(() => this.nextTrainingRound(), 1600);
+        }
+    }
+
+    showMuzzleFlash() {
+        const flash = this.viewWeapon.userData.flash;
+        flash.material.opacity = 1;
+        flash.scale.setScalar(1 + Math.random() * 0.45);
+        this.effects.push({ object: flash, life: 0.07, maxLife: 0.07, type: 'flash' });
+    }
+
+    createTracer(start, end, color) {
+        const geometry = new THREE.BufferGeometry().setFromPoints([start, end]);
+        const line = new THREE.Line(geometry, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.9 }));
+        this.scene.add(line);
+        this.tracers.push({ object: line, life: 0.09, maxLife: 0.09 });
+    }
+
+    createImpact(position, color) {
+        const marker = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), new THREE.MeshBasicMaterial({ color, transparent: true }));
+        marker.position.copy(position);
+        this.scene.add(marker);
+        this.effects.push({ object: marker, life: 0.5, maxLife: 0.5, type: 'impact' });
     }
 
     reload() {
@@ -142,830 +384,58 @@ export class GameEngine {
             this.canShoot = true;
             this.reloadTimer = null;
             this.ui.actualizarHUD(this.hp, `${this.ammo}/${this.magazineSize}`);
-        }, 1200);
+        }, 900);
     }
 
-    initThree() {
-        this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x0b0e14);
-        this.scene.fog = new THREE.Fog(0x0b0e14, 15, 80);
-
-        this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        this.camera.position.set(0, 6, 10);
-
-        this.renderer = new THREE.WebGLRenderer({ antialias: true });
-        this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.shadowMap.enabled = true;
-        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-        document.getElementById('viewport').appendChild(this.renderer.domElement);
-
-        // Luces
-        const ambient = new THREE.AmbientLight(0xffffff, 0.5);
-        this.scene.add(ambient);
-
-        const dir = new THREE.DirectionalLight(0xffffff, 1);
-        dir.position.set(20, 30, 20);
-        dir.castShadow = true;
-        dir.shadow.mapSize.width = 1024;
-        dir.shadow.mapSize.height = 1024;
-        this.scene.add(dir);
-
-        // Luces de neón
-        const neon1 = new THREE.PointLight(0x00e5ff, 2, 30);
-        neon1.position.set(15, 8, 15);
-        this.scene.add(neon1);
-
-        const neon2 = new THREE.PointLight(0xff00aa, 2, 30);
-        neon2.position.set(-15, 8, -15);
-        this.scene.add(neon2);
-
-        this.createMap(this.mapId);
-
-        // Colisionador local: el modelo queda oculto porque el juego usa primera persona.
-        this.player = this.createCharacter(0x00e5ff);
-        this.player.position.set(0, 0, 0);
-        this.player.visible = false;
-        this.player.castShadow = true;
-        this.scene.add(this.player);
-        this.viewWeapon = this.createFirstPersonWeapon();
-        this.camera.add(this.viewWeapon);
-        this.scene.add(this.camera);
-
-        window.addEventListener('resize', () => {
-            this.camera.aspect = window.innerWidth / window.innerHeight;
-            this.camera.updateProjectionMatrix();
-            this.renderer.setSize(window.innerWidth, window.innerHeight);
-        });
-    }
-
-    createFirstPersonWeapon() {
-        const group = new THREE.Group();
-        const gunMaterial = new THREE.MeshStandardMaterial({ color: 0x172337, metalness: 0.8, roughness: 0.25 });
-        const glowMaterial = new THREE.MeshStandardMaterial({ color: 0x00e5ff, emissive: 0x00e5ff, emissiveIntensity: 1.5 });
-        const gun = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.2, 0.72), gunMaterial);
-        gun.position.set(0.34, -0.26, -0.72);
-        const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.28, 10), gunMaterial);
-        barrel.rotation.x = Math.PI / 2;
-        barrel.position.set(0.34, -0.24, -1.2);
-        const sight = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.04, 0.16), glowMaterial);
-        sight.position.set(0.34, -0.12, -0.82);
-        const hand = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.16, 0.3), new THREE.MeshStandardMaterial({ color: 0x253c5d, roughness: 0.8 }));
-        hand.position.set(0.2, -0.34, -0.55);
-        group.add(gun, barrel, sight, hand);
-        group.userData.muzzle = barrel;
-        return group;
-    }
-
-    createMap(mapId) {
-        this.worldObjects.forEach(object => this.scene.remove(object));
-        this.worldObjects = [];
-        this.coverMeshes = [];
-        const maps = {
-            'neon-district': { ground: 0x101a2b, grid: 0x00e5ff, line: 0x1a2a3a, accent: 0xff00aa },
-            'orbital-yard': { ground: 0x24222d, grid: 0xffa62b, line: 0x463426, accent: 0xffa62b },
-            'reactor-core': { ground: 0x21152b, grid: 0x9d4edd, line: 0x39204e, accent: 0x9d4edd }
-        };
-        const mapKey = maps[mapId] ? mapId : 'neon-district';
-        this.mapId = mapKey;
-        const theme = maps[mapKey];
-        const ground = new THREE.Mesh(
-            new THREE.PlaneGeometry(200, 200),
-            new THREE.MeshStandardMaterial({ color: theme.ground, roughness: 0.85 })
-        );
-        ground.rotation.x = -Math.PI / 2;
-        ground.receiveShadow = true;
-        this.addWorldObject(ground);
-        const grid = new THREE.GridHelper(200, 50, theme.grid, theme.line);
-        grid.position.y = 0.01;
-        this.addWorldObject(grid);
-
-        const layouts = {
-            'neon-district': [
-                [-28, 3, -18, 8, 6, 4], [-12, 2, 4, 4, 4, 10], [10, 3, -10, 6, 6, 6],
-                [28, 2, 15, 10, 4, 4], [0, 4, 24, 4, 8, 4], [-30, 5, 28, 5, 10, 5]
-            ],
-            'orbital-yard': [
-                [-30, 2, -20, 12, 4, 4], [-12, 5, 0, 4, 10, 4], [12, 2, 18, 14, 4, 4],
-                [30, 4, -14, 5, 8, 5], [0, 2, -28, 4, 4, 14], [24, 2, 26, 6, 4, 6]
-            ],
-            'reactor-core': [
-                [-24, 4, -18, 5, 8, 5], [0, 2, -20, 14, 4, 4], [25, 5, -8, 5, 10, 5],
-                [-18, 2, 15, 8, 4, 4], [12, 3, 18, 6, 6, 6], [0, 2, 30, 16, 4, 4]
-            ]
-        };
-        const material = new THREE.MeshStandardMaterial({
-            color: mapKey === 'orbital-yard' ? 0x514238 : mapKey === 'reactor-core' ? 0x422b52 : 0x263b59,
-            emissive: theme.accent,
-            emissiveIntensity: 0.12,
-            roughness: 0.62
-        });
-        layouts[mapKey].forEach(([x, y, z, sx, sy, sz]) => {
-            const box = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), material.clone());
-            box.position.set(x, y, z);
-            box.castShadow = true;
-            box.receiveShadow = true;
-            this.addWorldObject(box);
-            this.coverMeshes.push(box);
-        });
-        if (mapKey === 'orbital-yard' || mapKey === 'reactor-core') {
-            for (let i = 0; i < 8; i++) {
-                const pillar = new THREE.Mesh(
-                    new THREE.CylinderGeometry(1.2, 1.2, 7, 12),
-                    new THREE.MeshStandardMaterial({ color: 0x303846, emissive: theme.accent, emissiveIntensity: 0.22 })
-                );
-                pillar.position.set((i % 4) * 18 - 27, 3.5, Math.floor(i / 4) * 30 - 15);
-                pillar.castShadow = true;
-                this.addWorldObject(pillar);
-                this.coverMeshes.push(pillar);
+    updateBots(dt) {
+        if (this.isRespawning) return;
+        this.bots.forEach(bot => {
+            const offset = this.player.position.clone().sub(bot.mesh.position);
+            const distance = offset.length();
+            const flat = new THREE.Vector3(offset.x, 0, offset.z);
+            if (distance > 6 && flat.lengthSq() > 0) {
+                flat.normalize();
+                const next = bot.mesh.position.clone().addScaledVector(flat, (1.05 + this.trainingRound * 0.1) * dt);
+                if (this.canOccupy(next)) bot.mesh.position.copy(next);
             }
-        }
-        if (mapKey === 'neon-district') this.createNeonDistrictDetails(theme);
-        document.getElementById('hud-map').textContent = mapKey === 'neon-district'
-            ? 'DISTRITO NEON'
-            : mapKey === 'orbital-yard' ? 'ASTILLERO ORBITAL' : 'NÚCLEO REACTOR';
-    }
-
-    addWorldObject(object) {
-        this.scene.add(object);
-        this.worldObjects.push(object);
-    }
-
-    canOccupy(position) {
-        const playerSphere = new THREE.Sphere(
-            new THREE.Vector3(position.x, 1.1, position.z),
-            0.72
-        );
-        return !this.coverMeshes.some(mesh => {
-            const bounds = new THREE.Box3().setFromObject(mesh);
-            return bounds.intersectsSphere(playerSphere);
-        });
-    }
-
-    createCharacter(color) {
-        const group = new THREE.Group();
-        const armor = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.25, metalness: 0.4, roughness: 0.45 });
-        const dark = new THREE.MeshStandardMaterial({ color: 0x101522, metalness: 0.65, roughness: 0.3 });
-        const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.48, 0.85, 6, 12), armor);
-        body.position.y = 1.15;
-        const head = new THREE.Mesh(new THREE.SphereGeometry(0.38, 16, 12), dark);
-        head.position.y = 2.05;
-        const visor = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.12, 0.12), new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: color, emissiveIntensity: 0.8 }));
-        visor.position.set(0, 2.08, -0.32);
-        const shoulderMaterial = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.18, metalness: 0.5, roughness: 0.4 });
-        const leftShoulder = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 8), shoulderMaterial);
-        leftShoulder.position.set(-0.48, 1.42, 0);
-        const rightShoulder = leftShoulder.clone();
-        rightShoulder.position.x = 0.48;
-        const legMaterial = new THREE.MeshStandardMaterial({ color: 0x182033, metalness: 0.5, roughness: 0.45 });
-        const leftLeg = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.58, 0.25), legMaterial);
-        leftLeg.position.set(-0.2, 0.42, 0);
-        const rightLeg = leftLeg.clone();
-        rightLeg.position.x = 0.2;
-        const weapon = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.16, 0.85), dark);
-        weapon.position.set(0.58, 1.25, -0.18);
-        weapon.rotation.x = -0.15;
-        group.add(body, head, visor, leftShoulder, rightShoulder, leftLeg, rightLeg, weapon);
-        group.userData.weapon = weapon;
-        group.castShadow = true;
-        group.traverse(child => { child.castShadow = true; });
-        return group;
-    }
-
-    initInputs() {
-        document.addEventListener('keydown', (e) => {
-            const key = this.getControlKey(e);
-            if (key) this.keys[key] = true;
-            if (e.code === 'KeyR' && this.isRunning) this.reload();
-            if (this.isRunning && key) e.preventDefault();
-        });
-        document.addEventListener('keyup', (e) => {
-            const key = this.getControlKey(e);
-            if (key) this.keys[key] = false;
-        });
-        window.addEventListener('blur', () => this.resetControls());
-        document.addEventListener('mousemove', (e) => {
-            if (document.pointerLockElement) {
-                this.mouseX -= e.movementX * 0.0022;
-                this.mouseY -= e.movementY * 0.0022;
-                this.mouseY = Math.max(-1.35, Math.min(1.35, this.mouseY));
-            }
-        });
-        document.addEventListener('mousedown', (e) => {
-            if (e.button === 0 && this.isRunning) this.shoot();
-        });
-        document.addEventListener('click', (e) => {
-            if (this.isRunning && e.target === this.renderer.domElement && !document.pointerLockElement) {
-                this.renderer.domElement.requestPointerLock();
-            }
-        });
-    }
-
-    getControlKey(event) {
-        const controls = {
-            KeyW: 'w',
-            KeyA: 'a',
-            KeyS: 's',
-            KeyD: 'd',
-            Space: 'space',
-            ShiftLeft: 'shift',
-            ShiftRight: 'shift'
-        };
-        return controls[event.code] || null;
-    }
-
-    resetControls() {
-        Object.keys(this.keys).forEach(key => { this.keys[key] = false; });
-    }
-
-    startMatch(mode, isHost, peerId = null, mapId = this.mapId) {
-        this.training = false;
-        this.trainingBots.clear();
-        Object.values(this.remotePlayers).forEach(player => this.scene.remove(player));
-        this.remotePlayers = {};
-        document.getElementById('hud-round').hidden = true;
-        this.ui.ocultarTodas();
-        this.ui.mostrarHUD(true);
-        this.isRunning = true;
-        this.matchStarted = true;
-        this.isHost = isHost;
-        this.mode = mode;
-        this.createMap(mapId);
-        this.hp = 100;
-        this.ammo = this.magazineSize;
-        this.isReloading = false;
-        this.isRespawning = false;
-        this.ui.ocultarRespawn();
-        this.player.position.set(0, 0, 0);
-        this.viewWeapon.visible = true;
-
-        // Scoreboard inicial
-        const initialPlayers = [{ name: this.playerName, kills: 0, tag: '[N00B]' }];
-        this.ui.actualizarScoreboard(initialPlayers, mode);
-        this.ui.actualizarHUD(100, `${this.ammo}/${this.magazineSize}`);
-        this.combatants.clear();
-        this.combatants.set(this.localPeerId || 'local', { name: this.playerName, hp: 100, kills: 0, streak: 0 });
-        this.lobbyPlayers.set(this.localPeerId || 'local', { id: this.localPeerId || 'local', name: this.playerName, isHost: this.isHost });
-
-        if (isHost) {
-            if (!this.peer) this.prepareHost(peerId);
-            this.broadcast({ type: 'start', mode, mapId: this.mapId });
-        } else if (peerId && !this.conn) {
-            this.connectToHost(peerId);
-        }
-
-        this.animate();
-    }
-
-    startTraining(mapId = this.mapId) {
-        this.stop();
-        this.training = true;
-        this.isHost = false;
-        this.matchStarted = true;
-        this.isRunning = true;
-        this.mode = 'training';
-        this.trainingRound = 0;
-        this.peer = null;
-        this.conn = null;
-        Object.values(this.remotePlayers).forEach(player => this.scene.remove(player));
-        this.remotePlayers = {};
-        this.createMap(mapId);
-        this.ui.ocultarTodas();
-        this.ui.mostrarHUD(true);
-        this.player.position.set(0, 0, 0);
-        this.player.visible = false;
-        this.viewWeapon.visible = true;
-        this.hp = 100;
-        this.ammo = this.magazineSize;
-        this.combatants.clear();
-        this.lobbyPlayers.clear();
-        this.combatants.set('local', { name: this.playerName, hp: 100, kills: 0, streak: 0 });
-        this.ui.actualizarHUD(this.hp, `${this.ammo}/${this.magazineSize}`);
-        this.nextTrainingRound();
-        this.animate();
-    }
-
-    nextTrainingRound() {
-        this.trainingRound += 1;
-        this.trainingBots.forEach(id => {
-            if (this.remotePlayers[id]) this.scene.remove(this.remotePlayers[id]);
-            delete this.remotePlayers[id];
-            this.combatants.delete(id);
-        });
-        this.trainingBots.clear();
-        const count = Math.min(12, 1 + this.trainingRound);
-        for (let i = 0; i < count; i++) {
-            const id = `bot-${this.trainingRound}-${i}`;
-            const bot = this.createCharacter(0xff4d4d);
-            const angle = (i / count) * Math.PI * 2;
-            bot.position.set(Math.cos(angle) * (8 + this.trainingRound), 0, Math.sin(angle) * (8 + this.trainingRound));
-            bot.userData.bot = true;
-            bot.userData.targetYaw = Math.atan2(-bot.position.x, -bot.position.z);
-            this.scene.add(bot);
-            this.remotePlayers[id] = bot;
-            this.trainingBots.add(id);
-            this.combatants.set(id, {
-                name: `Bot ${i + 1}`,
-                hp: 100,
-                kills: 0,
-                streak: 0
-            });
-        }
-        const roundHud = document.getElementById('hud-round');
-        roundHud.hidden = false;
-        roundHud.textContent = `RONDA ${this.trainingRound} · BOTS ${count} · DIFICULTAD ${this.trainingRound}`;
-        this.ui.actualizarScoreboard(
-            [{ name: this.playerName, kills: 0 }, ...Array.from(this.trainingBots).map(id => ({ name: this.combatants.get(id).name, kills: 0 }))],
-            'ENTRENAMIENTO'
-        );
-        this.ui.addKillfeed(`Ronda ${this.trainingRound}: aparecen ${count} bots`);
-    }
-
-    updateTrainingBots(dt) {
-        if (!this.training || this.isRespawning) return;
-        const difficulty = this.trainingRound;
-        this.trainingBots.forEach(id => {
-            const bot = this.remotePlayers[id];
-            const stats = this.combatants.get(id);
-            if (!bot || !stats || stats.hp <= 0) return;
-            const toPlayer = this.player.position.clone().sub(bot.position);
-            const distance = toPlayer.length();
-            toPlayer.y = 0;
-            if (distance > 5) {
-                toPlayer.normalize();
-                const next = bot.position.clone().addScaledVector(toPlayer, (1.1 + difficulty * 0.12) * dt);
-                if (this.canOccupy(next)) bot.position.copy(next);
-            }
-            bot.userData.targetYaw = Math.atan2(
-                this.player.position.x - bot.position.x,
-                this.player.position.z - bot.position.z
-            ) + Math.PI;
-            bot.rotation.y = bot.userData.targetYaw;
-            bot.userData.botCooldown = (bot.userData.botCooldown || 0) - dt;
-            if (distance < 28 && bot.userData.botCooldown <= 0) {
-                bot.userData.botCooldown = Math.max(0.45, 1.5 - difficulty * 0.08);
-                if (Math.random() < Math.min(0.9, 0.28 + difficulty * 0.06)) {
-                    this.recibirDaño(8 + Math.min(12, difficulty));
+            bot.mesh.rotation.y = Math.atan2(this.player.position.x - bot.mesh.position.x, this.player.position.z - bot.mesh.position.z) + Math.PI;
+            bot.cooldown -= dt;
+            if (distance < 30 && bot.cooldown <= 0) {
+                bot.cooldown = Math.max(0.48, 1.45 - this.trainingRound * 0.07);
+                const origin = bot.mesh.position.clone().setY(1.4);
+                const target = this.player.position.clone().setY(1.25);
+                this.raycaster.set(origin, target.sub(origin).normalize());
+                const obstacle = this.raycaster.intersectObjects(this.coverMeshes, true)[0];
+                if (!obstacle || obstacle.distance > origin.distanceTo(this.player.position)) {
+                    this.createTracer(origin, this.player.position.clone().setY(1.35), 0xff4d9d);
+                    if (Math.random() < Math.min(0.78, 0.24 + this.trainingRound * 0.06)) this.receiveDamage(8 + Math.min(12, this.trainingRound));
                 }
             }
         });
     }
 
-    handleTrainingShot(origin, direction) {
-        const targets = Array.from(this.trainingBots)
-            .map(id => this.remotePlayers[id])
-            .filter(Boolean);
-        const hit = this.raycaster.intersectObjects(targets, true)[0];
-        if (!hit) return;
-        const targetId = Array.from(this.trainingBots).find(id => {
-            const bot = this.remotePlayers[id];
-            return hit.object === bot || hit.object.parent === bot || bot.children.includes(hit.object);
-        });
-        if (!targetId) return;
-        const stats = this.combatants.get(targetId);
-        if (!stats) return;
-        stats.hp -= 34;
-        if (stats.hp <= 0) {
-            const botName = stats.name;
-            this.ui.addKillfeed(`${this.playerName} eliminó a ${botName}`);
-            this.trainingBots.delete(targetId);
-            this.scene.remove(this.remotePlayers[targetId]);
-            delete this.remotePlayers[targetId];
-            this.combatants.delete(targetId);
-            if (this.trainingBots.size === 0) {
-                this.trainingNextRoundTimer = setTimeout(() => this.nextTrainingRound(), 1800);
-            }
-        }
-    }
-
-    prepareHost(roomId, mapId = this.mapId) {
-        if (this.peer) return;
-        const hostId = roomId || 'ns3d-' + Math.floor(Math.random() * 9000 + 1000);
-        this.isHost = true;
-        this.mapId = mapId;
-        this.peer = new Peer(hostId, PEER_OPTIONS);
-        this.peer.on('open', id => {
-            this.localPeerId = id;
-            this.lobbyPlayers.delete('local');
-            this.lobbyPlayers.set(id, { id, name: this.playerName, isHost: true });
-            this.combatants.set(id, { name: this.playerName, hp: 100, kills: 0, streak: 0 });
-            document.getElementById('hud-map').textContent = `SALA: ${id}`;
-            document.getElementById('play-status').textContent = `Sala lista. Comparte este ID: ${id}`;
-            this.broadcastLobby();
-            this.notifyLobby();
-        });
-        this.peer.on('connection', conn => {
-            if (this.connections.size >= 5) {
-                conn.close();
-                return;
-            }
-            this.connections.set(conn.peer, conn);
-            this.conn = conn;
-            this.setupConnection(conn);
-        });
-        this.peer.on('disconnected', () => {
-            document.getElementById('play-status').textContent = 'Se perdió temporalmente la señalización. Manteniendo la sala y reintentando…';
-            if (!this.peer.destroyed) this.peer.reconnect();
-        });
-        this.peer.on('error', error => this.handlePeerError(error));
-    }
-
-    connectToHost(peerId) {
-        const targetId = peerId.trim();
-        this.isHost = false;
-        document.getElementById('play-status').textContent = `Conectando con ${targetId}…`;
-        this.peer = new Peer(PEER_OPTIONS);
-        this.peer.on('open', id => {
-            this.localPeerId = id;
-            this.lobbyPlayers.delete('local');
-            this.lobbyPlayers.set(id, { id, name: this.playerName, isHost: false });
-            this.conn = this.peer.connect(targetId, { reliable: true });
-            this.connections.set(targetId, this.conn);
-            this.setupConnection(this.conn);
-        });
-        this.peer.on('disconnected', () => {
-            document.getElementById('play-status').textContent = 'Se perdió la conexión con el servidor de salas. Reintentando…';
-            this.peer.reconnect();
-        });
-        this.peer.on('error', error => this.handlePeerError(error));
-    }
-
-    setupConnection(conn) {
-        const connectionTimeout = setTimeout(() => {
-            if (!conn.open) {
-                conn.close();
-                this.handlePeerError({ type: 'connection-timeout' });
-            }
-        }, 15000);
-        conn.on('open', () => {
-            clearTimeout(connectionTimeout);
-            this.connectionFailureHandled.delete(`${conn.peer}:disconnected`);
-            console.log('Conexión P2P establecida');
-            document.getElementById('play-status').textContent = 'Conectado a la sala.';
-            conn.send({ type: 'hello', id: this.localPeerId, name: this.playerName, isHost: this.isHost, mapId: this.mapId });
-        });
-        conn.on('error', error => {
-            clearTimeout(connectionTimeout);
-            this.handleConnectionError(conn, error);
-        });
-
-        conn.on('data', (data) => {
-            if (data.type === 'move') {
-                this.handleRemoteMove(conn, data);
-            }
-            if (data.type === 'shoot') {
-                if (this.isHost) this.handleRemoteShoot(conn, data);
-            }
-            if (data.type === 'hit' && !this.isHost && conn.peer) {
-                this.recibirDaño(25);
-            }
-            if (data.type === 'start' && !this.isRunning) {
-                this.startMatch(data.mode || 'ffa', false, null, data.mapId || this.mapId);
-            }
-            if (data.type === 'match-state') {
-                if (data.mapId) this.createMap(data.mapId);
-                this.mode = data.mode || this.mode || 'ffa';
-                (data.players || []).forEach(player => {
-                    this.lobbyPlayers.set(player.id, {
-                        id: player.id,
-                        name: player.name,
-                        isHost: Boolean(player.isHost)
-                    });
-                    if (!this.combatants.has(player.id)) {
-                        this.combatants.set(player.id, {
-                            name: player.name,
-                            hp: 100,
-                            kills: player.kills || 0,
-                            streak: player.streak || 0
-                        });
-                    }
-                    if (player.id !== this.localPeerId) {
-                        this.createRemotePlayer(player.id);
-                        this.updateRemotePlayer(player.id, player.x || 0, player.y || 0, player.z || 0);
-                        if (Number.isFinite(player.yaw)) {
-                            this.remotePlayers[player.id].rotation.y = player.yaw;
-                            this.remotePlayers[player.id].userData.targetYaw = player.yaw;
-                        }
-                    }
-                });
-                if (data.started && !this.isRunning) {
-                    this.startMatch(this.mode, false, null, data.mapId || this.mapId);
-                } else {
-                    this.notifyLobby();
-                }
-            }
-            if (data.type === 'kill') {
-                this.ui.addKillEvent(data.killer, data.victim, data.streak);
-                const killer = this.combatants.get(data.killerId) || { name: data.killer, kills: 0, streak: 0, hp: 100 };
-                killer.kills += 1;
-                killer.streak = data.streak;
-                this.combatants.set(data.killerId, killer);
-                const victim = this.combatants.get(data.victimId);
-                if (victim) victim.streak = 0;
-                this.ui.actualizarScoreboard(
-                    Array.from(this.combatants.values()).map(player => ({ name: player.name, kills: player.kills })),
-                    this.mode
-                );
-            }
-            if (data.type === 'player-joined') {
-                this.ui.addKillfeed(`${data.name} se ha unido a la partida`);
-            }
-            if (data.type === 'lobby') {
-                this.lobbyPlayers = new Map(data.players.map(player => [player.id, player]));
-                if (data.mapId) this.mapId = data.mapId;
-                if (data.mode) this.mode = data.mode;
-                data.players.forEach(player => {
-                    if (!this.combatants.has(player.id)) {
-                        this.combatants.set(player.id, { name: player.name, hp: 100, kills: 0, streak: 0 });
-                    }
-                });
-                this.notifyLobby();
-            }
-            if (data.type === 'hello') {
-                const id = data.id || conn.peer;
-                this.createRemotePlayer(id);
-                if (this.isHost) {
-                    this.lobbyPlayers.set(id, { id, name: data.name || `Jugador ${id.slice(-4)}`, isHost: false });
-                    this.combatants.set(id, { name: data.name || `Jugador ${id.slice(-4)}`, hp: 100, kills: 0, streak: 0 });
-                    this.ui.addKillfeed(`${data.name || 'Jugador'} se ha unido a la partida`);
-                    const joinEvent = { type: 'player-joined', name: data.name || `Jugador ${id.slice(-4)}` };
-                    this.broadcast(joinEvent, conn.peer);
-                    conn.send(joinEvent);
-                    this.remotePlayers && Object.keys(this.remotePlayers)
-                        .filter(playerId => playerId !== id)
-                        .forEach(playerId => conn.send({ type: 'player', id: playerId }));
-                    this.broadcast({ type: 'player', id }, conn.peer);
-                    this.broadcastLobby();
-                    this.notifyLobby();
-                    conn.send({
-                        type: 'match-state',
-                        started: this.matchStarted,
-                        mode: this.mode || 'ffa',
-                        mapId: this.mapId,
-                        players: this.getMatchPlayers()
-                    });
-                    if (this.matchStarted) {
-                        conn.send({ type: 'start', mode: this.mode, mapId: this.mapId });
-                    }
-                }
-                if (!this.isHost && data.mapId) this.createMap(data.mapId);
-            }
-            if (data.type === 'player') {
-                this.createRemotePlayer(data.id);
-            }
-        });
-
-        conn.on('close', () => {
-            clearTimeout(connectionTimeout);
-            this.connections.delete(conn.peer);
-            this.removeRemotePlayer(conn.peer);
-            this.lobbyPlayers.delete(conn.peer);
-            this.combatants.delete(conn.peer);
-            this.notifyLobby();
-            console.log('Conexión cerrada');
-            if (!this.isHost) this.handleConnectionError(conn, { type: 'disconnected' });
-        });
-    }
-
-    handleConnectionError(conn, error) {
-        const key = `${conn.peer}:${error.type || 'error'}`;
-        if (this.connectionFailureHandled.has(key)) return;
-        this.connectionFailureHandled.add(key);
-        this.handlePeerError(error);
-    }
-
-    handlePeerError(error) {
-        console.error('Peer error:', error);
-        const status = document.getElementById('play-status');
-        const messages = {
-            'unavailable-id': 'Ese código de sala ya está ocupado. Usa otro.',
-            'peer-unavailable': 'No existe una sala activa con ese ID. Comprueba el código del host.',
-            'connection-timeout': 'No se recibió respuesta del host. Comprueba el ID y que el host mantenga abierta la sala.',
-            'network': 'No se pudo conectar con el servidor de salas. Comprueba la conexión a Internet.',
-            'server-error': 'El servidor de salas rechazó la conexión. Inténtalo de nuevo.',
-            'socket-error': 'No se pudo abrir la conexión de red para la sala.',
-            'disconnected': 'La conexión con el host se ha cerrado.'
-        };
-        status.textContent = messages[error.type] || `No se pudo conectar con la sala (${error.type || 'error desconocido'}).`;
-        if (error.type === 'disconnected') {
-            if (this.isHost) return;
-            if (!this.isRunning) {
-                status.textContent = 'El host cerró la sala o dejó de estar disponible.';
-                return;
-            }
-        }
-        if (!this.isRunning) {
-            return;
-        }
-        this.stop();
-        this.ui.mostrarHUD(false);
-        this.ui.showScreen('screen-play');
-    }
-
-    broadcast(message, exceptPeer = null) {
-        this.connections.forEach((connection, peerId) => {
-            if (peerId !== exceptPeer && connection.open) connection.send(message);
-        });
-    }
-
-    broadcastLobby() {
-        const players = Array.from(this.lobbyPlayers.entries()).map(([id, player]) => ({ id, ...player }));
-        this.broadcast({ type: 'lobby', players, mapId: this.mapId, mode: this.mode || 'ffa' });
-    }
-
-    getMatchPlayers() {
-        return Array.from(this.lobbyPlayers.entries()).map(([id, player]) => {
-            const mesh = id === this.localPeerId ? this.player : this.remotePlayers[id];
-            const stats = this.combatants.get(id) || {};
-            return {
-                id,
-                name: player.name,
-                isHost: Boolean(player.isHost),
-                x: mesh?.position.x || 0,
-                y: mesh?.position.y || 0,
-                z: mesh?.position.z || 0,
-                yaw: mesh?.rotation.y || 0,
-                kills: stats.kills || 0,
-                streak: stats.streak || 0
-            };
-        });
-    }
-
-    handleRemoteMove(conn, data) {
-        const id = this.isHost ? conn.peer : data.id;
-        if (!id || id === this.localPeerId) return;
-        const values = [data.x, data.y, data.z];
-        if (!values.every(Number.isFinite) || values.some(value => Math.abs(value) > 100)) return;
-        this.updateRemotePlayer(id, data.x, data.y, data.z);
-        if (Number.isFinite(data.yaw) && this.remotePlayers[id]) {
-            this.remotePlayers[id].userData.targetYaw = data.yaw;
-        }
-        if (this.isHost) this.broadcast({ type: 'move', id, x: data.x, y: data.y, z: data.z, yaw: data.yaw }, id);
-    }
-
-    createRemotePlayer(id) {
-        if (this.remotePlayers[id]) return;
-        const mesh = this.createCharacter(0xff4d4d);
-        mesh.position.set(5, 0, 5);
-        this.scene.add(mesh);
-        this.remotePlayers[id] = mesh;
-    }
-
-    updateRemotePlayer(id, x, y, z) {
-        if (!this.remotePlayers[id]) this.createRemotePlayer(id);
-        const target = this.remotePlayers[id];
-        target.position.lerp(new THREE.Vector3(x, y, z), 0.2);
-        if (Number.isFinite(target.userData.targetYaw)) {
-            const angleDelta = Math.atan2(
-                Math.sin(target.userData.targetYaw - target.rotation.y),
-                Math.cos(target.userData.targetYaw - target.rotation.y)
-            );
-            target.rotation.y += angleDelta * 0.25;
-        }
-    }
-
-    removeRemotePlayer(id) {
-        const player = this.remotePlayers[id];
-        if (!player) return;
-        this.scene.remove(player);
-        delete this.remotePlayers[id];
-    }
-
-    shoot() {
-        if (!this.isRunning || !this.canShoot || this.isReloading || this.isRespawning) return;
-        if (this.ammo <= 0) {
-            this.reload();
-            return;
-        }
-        this.canShoot = false;
-        setTimeout(() => { this.canShoot = true; }, this.shotCooldown);
-        this.ammo -= 1;
+    receiveDamage(damage) {
+        if (this.isRespawning) return;
+        this.hp -= damage;
         this.ui.actualizarHUD(this.hp, `${this.ammo}/${this.magazineSize}`);
-        if (this.ammo === 0) this.reload();
-
-        const shot = this.getShotData();
-        if (!shot) return;
-        const { origin, direction } = shot;
-        if (this.training) this.handleTrainingShot(origin, direction);
-
-        this.raycaster.set(origin, direction);
-        const intersects = this.raycaster.intersectObjects(this.coverMeshes, true);
-
-        // Efecto visual: pequeña esfera en el punto de impacto
-        if (intersects.length > 0) {
-            const hit = intersects[0];
-            const marker = new THREE.Mesh(
-                new THREE.SphereGeometry(0.1),
-                new THREE.MeshBasicMaterial({ color: 0xffff00 })
-            );
-            marker.position.copy(hit.point);
-            this.scene.add(marker);
-            setTimeout(() => this.scene.remove(marker), 500);
-        }
-
-        // Enviar disparo al otro jugador
-        const message = {
-                type: 'shoot',
-                origin: { x: origin.x, y: origin.y, z: origin.z },
-                direction: { x: direction.x, y: direction.y, z: direction.z }
-        };
-        if (this.isHost) {
-            this.handleRemoteShoot({ peer: this.localPeerId }, message);
-            this.broadcast(message);
-        } else if (this.conn && this.conn.open) {
-            this.conn.send(message);
-        }
-    }
-
-    handleRemoteShoot(connection, data) {
-        if (!data.origin || !data.direction || this.isRespawning) return;
-        const shooterId = connection.peer;
-        const now = Date.now();
-        if (now - (this.lastShotByPeer.get(shooterId) || 0) < 250) return;
-        this.lastShotByPeer.set(shooterId, now);
-        const origin = new THREE.Vector3(data.origin.x, data.origin.y, data.origin.z);
-        const direction = new THREE.Vector3(data.direction.x, data.direction.y, data.direction.z);
-        if (![...origin, ...direction].every(Number.isFinite) || direction.lengthSq() < 0.9) return;
-        direction.normalize();
-        const shooter = shooterId === this.localPeerId ? this.player : this.remotePlayers[shooterId];
-        if (!shooter || origin.distanceTo(shooter.position) > 8) return;
-        this.raycaster.set(origin, direction);
-        const targets = (shooterId === this.localPeerId ? [] : [this.player]).concat(Object.entries(this.remotePlayers)
-            .filter(([id]) => id !== shooterId)
-            .map(([, player]) => player));
-        const targetHits = this.raycaster.intersectObjects(targets, true);
-        const coverHits = this.raycaster.intersectObjects(this.coverMeshes, false);
-        const targetHit = targetHits[0];
-        const coverHit = coverHits[0];
-        if (!targetHit || (coverHit && coverHit.distance < targetHit.distance) || targetHit.distance > 100) return;
-        const targetRoot = targetHit.object.parent;
-        const targetId = targetHit.object === this.player || targetRoot === this.player
-            ? this.localPeerId
-            : Object.keys(this.remotePlayers).find(id => this.remotePlayers[id] === targetHit.object || this.remotePlayers[id] === targetRoot);
-        if (!targetId) return;
-        const victim = this.combatants.get(targetId) || { name: this.lobbyPlayers.get(targetId)?.name || `Jugador ${targetId.slice(-4)}`, hp: 100, kills: 0, streak: 0 };
-        const attacker = this.combatants.get(shooterId) || { name: this.lobbyPlayers.get(shooterId)?.name || 'Jugador', hp: 100, kills: 0, streak: 0 };
-        victim.hp -= 25;
-        this.combatants.set(targetId, victim);
-        if (targetId === this.localPeerId) {
-            this.recibirDaño(25);
-        } else {
-            const targetConnection = this.connections.get(targetId);
-            if (targetConnection && targetConnection.open) targetConnection.send({ type: 'hit', damage: 25 });
-        }
-        if (victim.hp <= 0) {
-            attacker.kills += 1;
-            attacker.streak += 1;
-            victim.streak = 0;
-            victim.hp = 100;
-            this.combatants.set(shooterId, attacker);
-            this.combatants.set(targetId, victim);
-            const kill = {
-                type: 'kill',
-                killerId: shooterId,
-                victimId: targetId,
-                killer: attacker.name,
-                victim: victim.name,
-                streak: attacker.streak
-            };
-            this.ui.addKillEvent(kill.killer, kill.victim, kill.streak);
-            this.ui.actualizarScoreboard(
-                Array.from(this.combatants.values()).map(player => ({ name: player.name, kills: player.kills })),
-                this.mode
-            );
-            this.broadcast(kill);
-        }
-    }
-
-    recibirDaño(dmg) {
-        if (this.isRespawning || !Number.isFinite(dmg) || dmg <= 0) return;
-        this.hp -= dmg;
-        this.ui.actualizarHUD(this.hp, `${this.ammo}/${this.magazineSize}`);
-        if (this.hp <= 0) {
-            this.respawn();
-        }
+        if (this.hp <= 0) this.respawn();
     }
 
     respawn() {
-        if (this.isRespawning) return;
         this.isRespawning = true;
-        this.hp = 100;
-        this.ui.actualizarHUD(100, `${this.ammo}/${this.magazineSize}`);
         this.ui.mostrarRespawn(3);
-        let counter = 3;
+        let seconds = 3;
         this.respawnTimer = setInterval(() => {
-            counter--;
-            if (counter <= 0) {
+            seconds -= 1;
+            if (seconds <= 0) {
                 clearInterval(this.respawnTimer);
                 this.respawnTimer = null;
                 this.isRespawning = false;
+                this.hp = 100;
+                this.player.position.set(0, 0, 0);
                 this.ui.ocultarRespawn();
-                this.player.position.set(
-                    (Math.random() - 0.5) * 40,
-                    0,
-                    (Math.random() - 0.5) * 40
-                );
             } else {
-                this.ui.mostrarRespawn(counter);
+                this.ui.mostrarRespawn(seconds);
             }
         }, 1000);
     }
@@ -976,11 +446,10 @@ export class GameEngine {
         const now = performance.now();
         const dt = Math.min(0.05, Math.max(0.001, (now - this.lastFrameTime) / 1000));
         this.lastFrameTime = now;
-        this.updateTrainingBots(dt);
+        this.updateBots(dt);
 
         this.camera.rotation.order = 'YXZ';
-        this.camera.rotation.y = this.mouseX;
-        this.camera.rotation.x = this.mouseY;
+        this.camera.rotation.set(this.mouseY, this.mouseX, 0);
         const forward = new THREE.Vector3();
         this.camera.getWorldDirection(forward);
         forward.y = 0;
@@ -992,84 +461,78 @@ export class GameEngine {
         if (this.keys.d) wish.add(right);
         if (this.keys.a) wish.sub(right);
         if (wish.lengthSq() > 0) wish.normalize();
-        this.player.rotation.y = this.mouseX;
-        const maxSpeed = this.keys.shift ? 8.5 : 5.2;
-        const acceleration = wish.lengthSq() > 0 ? 24 : 18;
-        const targetX = wish.x * maxSpeed;
-        const targetZ = wish.z * maxSpeed;
-        this.moveVelocity.x = THREE.MathUtils.damp(this.moveVelocity.x, targetX, acceleration, dt);
-        this.moveVelocity.z = THREE.MathUtils.damp(this.moveVelocity.z, targetZ, acceleration, dt);
-        const nextX = this.player.position.clone();
-        nextX.x += this.moveVelocity.x * dt;
+        const speed = this.keys.shift ? 8.5 : 5.2;
+        this.moveVelocity.x = THREE.MathUtils.damp(this.moveVelocity.x, wish.x * speed, 24, dt);
+        this.moveVelocity.z = THREE.MathUtils.damp(this.moveVelocity.z, wish.z * speed, 24, dt);
+        const nextX = this.player.position.clone().addScaledVector(new THREE.Vector3(this.moveVelocity.x, 0, 0), dt);
+        const nextZ = this.player.position.clone().addScaledVector(new THREE.Vector3(0, 0, this.moveVelocity.z), dt);
         if (this.canOccupy(nextX)) this.player.position.x = nextX.x;
-        const nextZ = this.player.position.clone();
-        nextZ.z += this.moveVelocity.z * dt;
         if (this.canOccupy(nextZ)) this.player.position.z = nextZ.z;
-
-        // Salto + gravedad
-        if (this.keys.space && this.player.position.y <= 0.001) {
-            this.velocityY = 7;
-        }
+        if (this.keys.space && this.player.position.y <= 0.001) this.velocityY = 7;
         this.velocityY -= 20 * dt;
-        this.player.position.y += this.velocityY * dt;
-        if (this.player.position.y < 0) {
-            this.player.position.y = 0;
-            this.velocityY = 0;
-        }
+        this.player.position.y = Math.max(0, this.player.position.y + this.velocityY * dt);
+        this.player.position.x = THREE.MathUtils.clamp(this.player.position.x, -90, 90);
+        this.player.position.z = THREE.MathUtils.clamp(this.player.position.z, -90, 90);
+        this.player.rotation.y = this.mouseX;
 
-        // Limitar al mapa
-        this.player.position.x = Math.max(-90, Math.min(90, this.player.position.x));
-        this.player.position.z = Math.max(-90, Math.min(90, this.player.position.z));
-
-        this.camera.position.set(this.player.position.x, this.player.position.y + 1.62, this.player.position.z);
-        const bob = wish.lengthSq() > 0 && this.player.position.y <= 0.001 ? Math.sin(now * 0.012) * 0.008 : 0;
+        const moving = wish.lengthSq() > 0 && this.player.position.y <= 0.001;
+        const bob = moving ? Math.sin(now * 0.012) * 0.035 : 0;
+        this.camera.position.set(this.player.position.x, this.player.position.y + 1.62 + bob, this.player.position.z);
         this.viewWeapon.position.y = bob;
-
-        // Sincronizar posición
-        const movement = {
-                type: 'move',
-                id: this.localPeerId,
-                x: this.player.position.x,
-                y: this.player.position.y,
-                z: this.player.position.z,
-                yaw: this.mouseX
-        };
-        if (this.isHost) this.broadcast(movement);
-        else if (this.conn && this.conn.open) this.conn.send(movement);
-
+        this.viewWeapon.rotation.z = moving ? Math.sin(now * 0.012) * 0.012 : 0;
+        this.updateEffects(dt);
         this.renderer.render(this.scene, this.camera);
+    }
+
+    updateEffects(dt) {
+        this.tracers = this.tracers.filter(effect => {
+            effect.life -= dt;
+            effect.object.material.opacity = Math.max(0, effect.life / effect.maxLife);
+            if (effect.life <= 0) {
+                this.scene.remove(effect.object);
+                effect.object.geometry.dispose();
+                effect.object.material.dispose();
+                return false;
+            }
+            return true;
+        });
+        this.effects = this.effects.filter(effect => {
+            effect.life -= dt;
+            if (effect.type === 'flash') effect.object.material.opacity = Math.max(0, effect.life / effect.maxLife);
+            if (effect.type === 'impact') effect.object.scale.setScalar(1 + (1 - effect.life / effect.maxLife) * 2);
+            if (effect.life <= 0) {
+                this.scene.remove(effect.object);
+                if (effect.type === 'impact') {
+                    effect.object.geometry.dispose();
+                    effect.object.material.dispose();
+                }
+                return false;
+            }
+            return true;
+        });
     }
 
     stop() {
         this.isRunning = false;
-        this.matchStarted = false;
+        this.training = false;
         if (this.animationFrame) cancelAnimationFrame(this.animationFrame);
         this.animationFrame = null;
-        if (this.respawnTimer) {
-            clearInterval(this.respawnTimer);
-            this.respawnTimer = null;
-        }
+        if (this.trainingNextRoundTimer) clearTimeout(this.trainingNextRoundTimer);
+        if (this.respawnTimer) clearInterval(this.respawnTimer);
+        if (this.reloadTimer) clearTimeout(this.reloadTimer);
+        this.trainingNextRoundTimer = null;
+        this.respawnTimer = null;
+        this.reloadTimer = null;
+        this.bots.forEach(bot => this.scene.remove(bot.mesh));
+        this.bots.clear();
+        this.tracers.forEach(effect => this.scene.remove(effect.object));
+        this.tracers = [];
+        this.effects.forEach(effect => this.scene.remove(effect.object));
+        this.effects = [];
         this.isRespawning = false;
-        if (this.trainingNextRoundTimer) {
-            clearTimeout(this.trainingNextRoundTimer);
-            this.trainingNextRoundTimer = null;
-        }
-        this.training = false;
-        this.trainingBots.clear();
-        const roundHud = document.getElementById('hud-round');
-        if (roundHud) roundHud.hidden = true;
-        if (this.viewWeapon) this.viewWeapon.visible = false;
-        if (this.reloadTimer) {
-            clearTimeout(this.reloadTimer);
-            this.reloadTimer = null;
-        }
         this.isReloading = false;
         this.canShoot = true;
-        if (this.peer) this.peer.destroy();
-        this.peer = null;
-        this.conn = null;
-        this.connections.clear();
-        this.lastShotByPeer.clear();
+        if (this.viewWeapon) this.viewWeapon.visible = false;
         if (document.pointerLockElement) document.exitPointerLock();
     }
 }

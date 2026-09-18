@@ -32,20 +32,6 @@ export class UIManager {
         document.getElementById('bp-coins').textContent = userData.monedas || 0;
     }
 
-    updateLobbyUI(players, isHost) {
-        const list = document.getElementById('lobby-players');
-        list.innerHTML = '';
-        players.forEach(p => {
-            const li = document.createElement('li');
-            li.textContent = `${p.name}${p.isHost ? ' 👑' : ''}`;
-            list.appendChild(li);
-        });
-        document.getElementById('lobby-count').textContent = players.length;
-
-        const btnStart = document.getElementById('btn-start');
-        btnStart.disabled = !isHost || players.length < 1;
-    }
-
     mostrarHUD(mostrar) {
         document.getElementById('hud').hidden = !mostrar;
     }

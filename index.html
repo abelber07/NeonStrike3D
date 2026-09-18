@@ -7,9 +7,6 @@
 
 <link rel="stylesheet" href="./css/style.css" />
 
-<!-- PeerJS: build UMD, se expone como global `Peer` -->
-<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-
 <!-- Import map para módulos ESM desde CDN -->
 <script type="importmap">
 {
@@ -34,7 +31,7 @@
   <section class="screen active" id="screen-login">
     <div class="login-card glass">
       <h1 class="brand">NEON<span>STRIKE</span></h1>
-      <p class="sub">Shooter 3D en primera persona · P2P</p>
+      <p class="sub">Shooter 3D en primera persona · entrenamiento táctico</p>
 
       <label class="field">
         <span>Nombre de jugador</span>
@@ -95,71 +92,32 @@
     </div>
   </section>
 
-  <!-- ============ JUGAR / LOBBY ============ -->
+  <!-- ============ ENTRENAMIENTO ============ -->
   <section class="screen" id="screen-play">
     <header class="topbar">
       <button class="btn ghost back" data-back="menu">← Volver</button>
-      <h2>Salas</h2>
+      <h2>Entrenamiento</h2>
     </header>
 
-    <div class="play-grid">
-
-      <div class="panel glass">
-        <h3>Crear sala</h3>
-        <label class="field">
-          <span>Código de sala</span>
-          <input id="input-room-code" type="text" maxlength="12" placeholder="mi-sala-01" />
-        </label>
-        <button class="btn primary" id="btn-host">Crear como Host</button>
-
-        <hr />
-
-        <h3>Unirse a sala</h3>
-        <label class="field">
-          <span>ID de PeerJS del Host</span>
-          <input id="input-join-id" type="text" placeholder="ns3d-1234" />
-        </label>
-        <button class="btn" id="btn-join">Unirse</button>
-
-        <p class="hint" id="play-status">—</p>
+    <div class="training-layout">
+      <div class="panel glass training-intro">
+        <span class="eyebrow">RANGO DE PRÁCTICA // SOLO</span>
+        <h3>Afina tu puntería</h3>
+        <p class="hint">Supera oleadas de bots blindados. El escenario bloquea los disparos y cada ronda acelera el ritmo.</p>
+        <button class="btn primary big-btn" id="btn-training">Iniciar entrenamiento</button>
+        <p class="controls-hint">WASD moverse · SHIFT correr · ESPACIO saltar · R recargar · clic apuntar/disparar</p>
       </div>
-
-      <div class="panel glass" id="lobby-panel" hidden>
-        <h3>Sala <span class="code" id="lobby-code">—</span></h3>
-
-        <div class="lobby-section">
-          <h4>Jugadores <span id="lobby-count">0</span></h4>
-          <ul class="player-list" id="lobby-players"></ul>
-        </div>
-
-        <div class="lobby-section">
-          <h4>Modo de juego</h4>
-          <div class="mode-btns" id="mode-btns">
-            <button class="chip active" data-mode="ffa">FFA</button>
-            <button class="chip" data-mode="1v1">1v1</button>
-            <button class="chip" data-mode="2v2">2v2</button>
-            <button class="chip" data-mode="3v3">3v3</button>
-          </div>
-        </div>
-
-        <div class="lobby-section">
-          <h4>Mapa</h4>
-          <div class="mode-btns" id="map-btns">
-            <button class="chip active" data-map="neon-district">Distrito Neon</button>
-            <button class="chip" data-map="orbital-yard">Astillero Orbital</button>
-            <button class="chip" data-map="reactor-core">Núcleo Reactor</button>
-          </div>
-        </div>
-
-        <button class="btn primary big-btn" id="btn-start" disabled>Iniciar partida</button>
+      <div class="scenario-grid">
+        <button class="scenario-card active" data-map="neon-district" type="button">
+          <span class="scenario-art district-art"></span><strong>Distrito Neon</strong><small>Calles de luz y cobertura urbana</small>
+        </button>
+        <button class="scenario-card" data-map="orbital-yard" type="button">
+          <span class="scenario-art orbital-art"></span><strong>Astillero Orbital</strong><small>Pasarelas abiertas y pilares</small>
+        </button>
+        <button class="scenario-card" data-map="reactor-core" type="button">
+          <span class="scenario-art reactor-art"></span><strong>Núcleo Reactor</strong><small>Galerías violetas y fuego cruzado</small>
+        </button>
       </div>
-
-      <div class="panel glass training-panel">
-        <h3>Modo entrenamiento</h3>
-        <p class="hint">Enfréntate a oleadas de bots. Cada ronda aumenta la dificultad.</p>
-        <button class="btn primary big-btn" id="btn-training">Entrenar contra bots</button>
-      </div>
-
     </div>
   </section>
 
