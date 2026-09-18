@@ -36,9 +36,14 @@ export class UIManager {
         document.getElementById('hud').hidden = !mostrar;
     }
 
+    ocultarFinPartida() {
+        document.getElementById('match-end').hidden = true;
+    }
+
     actualizarHUD(hp, ammo) {
-        document.getElementById('hud-hp').textContent = Math.max(0, hp);
-        document.getElementById('hud-hp-fill').style.width = `${Math.max(0, hp)}%`;
+        const vida = Number.isFinite(Number(hp)) ? Math.round(Math.max(0, hp)) : 0;
+        document.getElementById('hud-hp').textContent = vida;
+        document.getElementById('hud-hp-fill').style.width = `${vida}%`;
         document.getElementById('hud-ammo-count').textContent = ammo;
     }
 

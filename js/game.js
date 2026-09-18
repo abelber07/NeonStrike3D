@@ -165,6 +165,38 @@ export class GameEngine {
                 this.coverMeshes.push(pillar);
             }
         }
+        this.addScenarioDetails(scenario, key);
+    }
+
+    addScenarioDetails(scenario, key) {
+        const glow = new THREE.MeshBasicMaterial({ color: scenario.grid });
+        for (let i = 0; i < 12; i++) {
+            const x = (i % 6) * 18 - 45;
+            const z = Math.floor(i / 6) * 34 - 17;
+            const beacon = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 5.5, 8), glow);
+            beacon.position.set(x, 2.75, z);
+            this.addWorldObject(beacon);
+        }
+        if (key === 'neon-district') {
+            for (let i = 0; i < 5; i++) {
+                const tower = new THREE.Mesh(
+                    new THREE.BoxGeometry(4 + (i % 2), 11 + (i % 3) * 2, 4),
+                    new THREE.MeshStandardMaterial({ color: 0x17253f, emissive: scenario.accent, emissiveIntensity: 0.18, metalness: 0.65 })
+                );
+                tower.position.set(-42 + i * 20, tower.geometry.parameters.height / 2, -42);
+                tower.castShadow = true;
+                this.addWorldObject(tower);
+                this.coverMeshes.push(tower);
+            }
+        } else {
+            const ringMaterial = new THREE.MeshBasicMaterial({ color: scenario.grid, transparent: true, opacity: 0.65 });
+            for (let i = 0; i < 4; i++) {
+                const ring = new THREE.Mesh(new THREE.TorusGeometry(4 + i, 0.08, 8, 32), ringMaterial);
+                ring.rotation.x = Math.PI / 2;
+                ring.position.set((i - 1.5) * 14, 0.08, 26);
+                this.addWorldObject(ring);
+            }
+        }
     }
 
     addScenarioTrim(cover, scenario, index) {
@@ -232,7 +264,29 @@ export class GameEngine {
         const weapon = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.16, 0.85), dark);
         weapon.position.set(0.58, 1.25, -0.18);
         group.add(body, head, visor, shoulder, otherShoulder, leg, otherLeg, weapon);
+        if (archetype === 'drone') {
+            const eye = new THREE.Mesh(
+                new THREE.SphereGeometry(0.14, 12, 8),
+                new THREE.MeshBasicMaterial({ color: 0xfff2a3 })
+            );
+            eye.position.set(0, 1.16, -0.72);
+            const antenna = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.035, 0.035, 0.65, 8),
+                new THREE.MeshBasicMaterial({ color: color })
+            );
+            antenna.position.set(0, 2.82, 0);
+            group.add(eye, antenna);
+        } else if (archetype === 'sentinel') {
+            const core = new THREE.Mesh(
+                new THREE.TorusGeometry(0.22, 0.06, 8, 18),
+                new THREE.MeshBasicMaterial({ color: 0xfff2a3 })
+            );
+            core.position.set(0, 1.25, -0.68);
+            core.rotation.x = Math.PI / 2;
+            group.add(core);
+        }
         group.userData.legs = [leg, otherLeg];
+        group.userData.archetype = archetype;
         group.traverse(child => { child.castShadow = true; });
         return group;
     }
@@ -298,6 +352,7 @@ export class GameEngine {
         this.viewWeapon.visible = true;
         this.ui.ocultarTodas();
         this.ui.mostrarHUD(true);
+        this.ui.ocultarFinPartida();
         this.ui.actualizarHUD(this.hp, `${this.ammo}/${this.magazineSize}`);
         this.nextTrainingRound();
         this.lastFrameTime = performance.now();
@@ -454,6 +509,14 @@ export class GameEngine {
                 if (this.canOccupy(next)) bot.mesh.position.copy(next);
             }
             bot.mesh.rotation.y = Math.atan2(this.player.position.x - bot.mesh.position.x, this.player.position.z - bot.mesh.position.z) + Math.PI;
+            const stride = Math.sin(this.trainingElapsed * 8 + bot.mesh.position.x) * Math.min(0.16, flat.length() * 0.04);
+            if (bot.mesh.userData.archetype === 'drone') {
+                bot.mesh.position.y = 0.15 + Math.sin(this.trainingElapsed * 3 + bot.mesh.position.z) * 0.08;
+                bot.mesh.rotation.z = Math.sin(this.trainingElapsed * 4 + bot.mesh.position.x) * 0.05;
+            } else {
+                bot.mesh.userData.legs?.[0].rotation.x = stride;
+                bot.mesh.userData.legs?.[1].rotation.x = -stride;
+            }
             bot.cooldown -= dt;
             if (distance < 30 && bot.cooldown <= 0) {
                 bot.cooldown = Math.max(0.34, 1.45 - this.trainingRound * 0.07);
@@ -463,7 +526,7 @@ export class GameEngine {
                 const obstacle = this.raycaster.intersectObjects(this.coverMeshes, true)[0];
                 if (!obstacle || obstacle.distance > origin.distanceTo(this.player.position)) {
                     this.createTracer(origin, this.player.position.clone().setY(1.35), 0xff4d9d);
-                    if (Math.random() < Math.min(0.9, 0.24 + this.trainingRound * 0.06)) this.receiveDamage(8 + Math.min(18, this.trainingRound * 1.2));
+                    this.receiveDamage(Math.round(8 + Math.min(18, this.trainingRound * 1.2)));
                 }
             }
         });
@@ -471,7 +534,7 @@ export class GameEngine {
 
     receiveDamage(damage) {
         if (this.isRespawning) return;
-        this.hp -= damage;
+        this.hp = Math.max(0, Math.round(this.hp - damage));
         this.ui.actualizarHUD(this.hp, `${this.ammo}/${this.magazineSize}`);
         if (this.hp <= 0) this.respawn();
     }
@@ -512,7 +575,7 @@ export class GameEngine {
         this.updateBots(dt);
         if (this.training) {
             this.trainingElapsed += dt;
-            this.ui.actualizarEntrenamiento(this.bots.size, this.trainingKills, this.trainingRound, this.trainingElapsed);
+            this.ui.actualizarEntrenamiento(this.bots.size, this.trainingKills, this.trainingRound, this.trainingElapsed, this.trainingLives);
         }
 
         this.camera.rotation.order = 'YXZ';

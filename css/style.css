@@ -137,16 +137,6 @@ input:focus { border-color: var(--accent); }
 .story-chapter > b { color: var(--accent); font-size: 20px; }
 .story-chapter span { display: grid; gap: 4px; }
 .story-chapter small { color: var(--text-muted); font-size: 11px; }
-.scenario-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-.scenario-card { border: 1px solid rgba(255,255,255,.12); border-radius: 12px; overflow: hidden; padding: 0 0 14px; text-align: left; color: var(--text-main); background: rgba(14, 20, 34, .9); cursor: pointer; transition: .2s; }
-.scenario-card:hover, .scenario-card.active { border-color: var(--accent); transform: translateY(-4px); box-shadow: 0 0 20px rgba(0,229,255,.18); }
-.scenario-card strong, .scenario-card small { display: block; padding: 0 12px; }
-.scenario-card strong { margin-top: 12px; font-size: 13px; }
-.scenario-card small { color: var(--text-muted); font-size: 11px; line-height: 1.4; margin-top: 5px; }
-.scenario-art { display: block; height: 150px; background-color: #14243c; background-size: cover; }
-.district-art { background: linear-gradient(145deg, #071d3a, #e5008b 140%), repeating-linear-gradient(90deg, transparent 0 22px, rgba(0,229,255,.22) 23px 24px); }
-.orbital-art { background: linear-gradient(145deg, #241914, #ff9d2e 145%), repeating-linear-gradient(0deg, transparent 0 28px, rgba(255,190,80,.25) 29px 30px); }
-.reactor-art { background: radial-gradient(circle at 68% 35%, #ff4d9d, transparent 25%), linear-gradient(145deg, #170d2e, #8b35c8); }
 
 /* Grid items (tienda/taquilla) */
 .grid-items {
@@ -256,8 +246,6 @@ input:focus { border-color: var(--accent); }
     .menu-content { left: 6%; right: 6%; width: auto; }
     .brand.big { font-size: 36px; }
     .training-layout { grid-template-columns: 1fr; overflow-y: auto; margin-top: 72px; }
-    .scenario-grid { grid-template-columns: 1fr; }
-    .scenario-art { height: 100px; }
     .grid-items { grid-template-columns: repeat(auto-fill, minmax(145px, 1fr)); }
     .training-status { top: 12px; left: 12px; min-width: 168px; }
     .training-phase { top: 12px; }

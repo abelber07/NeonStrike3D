@@ -18,6 +18,16 @@ import {
 } from './firebase.js';
 
 const ui = new UIManager();
+window.addEventListener('error', event => {
+    const status = document.getElementById('login-status');
+    if (status && event.error) {
+        status.textContent = `Error de la aplicación: ${event.error.message || 'revisa la consola del navegador'}`;
+    }
+});
+window.addEventListener('unhandledrejection', event => {
+    const status = document.getElementById('login-status');
+    if (status) status.textContent = `Error de conexión: ${event.reason?.message || 'no se pudo completar la operación'}`;
+});
 const game = new GameEngine(ui);
 let currentUser = null;
 let currentProfile = null;
@@ -154,8 +164,8 @@ document.getElementById('btn-login').addEventListener('click', async () => {
         return;
     }
     try {
+        status.textContent = 'Comprobando tus credenciales…';
         await setRememberDevice(rememberDevice.checked);
-        status.textContent = 'Iniciando sesión…';
         await iniciarSesion(email, password);
     } catch (e) {
         console.error(e);
